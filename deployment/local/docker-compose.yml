@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:17.5
+    container_name: talk-postgres
+    environment:
+      POSTGRES_DB: talk
+      POSTGRES_USER: talk
+      POSTGRES_PASSWORD: talk
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talk -d talk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    container_name: talk-api
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://talk:talk@postgres:5432/talk
+      - ATPROTO_PDS_URL=https://bsky.social
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../talk:/app/talk:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
