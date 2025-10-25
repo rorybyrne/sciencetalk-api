@@ -33,7 +33,7 @@ class TestIncrementCommentCount:
             id=post_id,
             type=PostType.DISCUSSION,
             author_id=UserId(uuid4()),
-            author_handle=Handle(value="author.bsky.social"),
+            author_handle=Handle(root="author.bsky.social"),
             title="Test Post",
             url=None,
             text="Test content",

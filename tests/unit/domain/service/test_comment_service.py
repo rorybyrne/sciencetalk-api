@@ -28,7 +28,7 @@ class TestCreateComment:
 
         post_id = PostId(uuid4())
         author_id = UserId(uuid4())
-        author_handle = Handle(value="user.bsky.social")
+        author_handle = Handle(root="user.bsky.social")
         text = "Test comment"
 
         # Act
@@ -61,7 +61,7 @@ class TestCreateComment:
         post_id = PostId(uuid4())
         parent_id = CommentId(uuid4())
         author_id = UserId(uuid4())
-        author_handle = Handle(value="user.bsky.social")
+        author_handle = Handle(root="user.bsky.social")
         text = "Reply comment"
 
         # Create parent comment first
@@ -69,7 +69,7 @@ class TestCreateComment:
             id=parent_id,
             post_id=post_id,
             author_id=UserId(uuid4()),
-            author_handle=Handle(value="parent.bsky.social"),
+            author_handle=Handle(root="parent.bsky.social"),
             text="Parent comment",
             parent_id=None,
             depth=2,  # Parent has depth 2
@@ -104,7 +104,7 @@ class TestCreateComment:
         post_id = PostId(uuid4())
         parent_id = CommentId(uuid4())  # Non-existent parent
         author_id = UserId(uuid4())
-        author_handle = Handle(value="user.bsky.social")
+        author_handle = Handle(root="user.bsky.social")
 
         # Don't save parent - it doesn't exist
 
@@ -131,14 +131,14 @@ class TestCreateComment:
         different_post_id = PostId(uuid4())
         parent_id = CommentId(uuid4())
         author_id = UserId(uuid4())
-        author_handle = Handle(value="user.bsky.social")
+        author_handle = Handle(root="user.bsky.social")
 
         # Create parent comment belonging to different post
         parent_comment = Comment(
             id=parent_id,
             post_id=different_post_id,  # Different post!
             author_id=UserId(uuid4()),
-            author_handle=Handle(value="parent.bsky.social"),
+            author_handle=Handle(root="parent.bsky.social"),
             text="Parent comment",
             parent_id=None,
             depth=0,

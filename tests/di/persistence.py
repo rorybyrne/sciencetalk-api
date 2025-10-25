@@ -4,12 +4,14 @@ from dishka import Scope, provide
 
 from talk.domain.repository import (
     CommentRepository,
+    InviteRepository,
     PostRepository,
     UserRepository,
     VoteRepository,
 )
 from talk.persistence.repository.inmemory import (
     InMemoryCommentRepository,
+    InMemoryInviteRepository,
     InMemoryPostRepository,
     InMemoryUserRepository,
     InMemoryVoteRepository,
@@ -44,3 +46,8 @@ class MockPersistenceProvider(PersistenceProvider):
     def get_vote_repository(self) -> VoteRepository:
         """Provide in-memory vote repository."""
         return InMemoryVoteRepository()
+
+    @provide(scope=Scope.REQUEST)
+    def get_invite_repository(self) -> InviteRepository:
+        """Provide in-memory invite repository."""
+        return InMemoryInviteRepository()

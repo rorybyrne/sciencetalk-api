@@ -18,13 +18,13 @@ test-e2e:
     @uv run pytest "tests/e2e"
 
 # Code quality commands
-fix dir="blank":
+fix dir="talk":
     uv run ruff format {{dir}}
     uv run ruff check --fix {{dir}}
 
-lint:
-    uv run ruff check blank
-    uv run pyright blank
+lint dir="talk":
+    uv run ruff check {{dir}}
+    uv run pyright {{dir}}
 
 lint-file file:
     - uv run ruff check {{file}}

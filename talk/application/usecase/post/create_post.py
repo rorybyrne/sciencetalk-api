@@ -17,7 +17,7 @@ class CreatePostRequest(BaseModel):
     title: str
     type: PostType
     author_id: str  # User ID from authenticated user
-    author_handle: str  # Handle from authenticated user
+    author_handle: Handle  # Handle from authenticated user
     url: str | None = None
     text: str | None = None
 
@@ -65,7 +65,7 @@ class CreatePostUseCase:
             title=request.title,
             type=request.type,
             author_id=UserId(UUID(request.author_id)),
-            author_handle=Handle(value=request.author_handle),
+            author_handle=request.author_handle,
             url=request.url,
             text=request.text,
             points=1,  # New posts start with 1 point

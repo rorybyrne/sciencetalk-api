@@ -7,11 +7,13 @@ instead of SQLAlchemy's classical imperative mapping.
 from typing import Any, Dict
 from uuid import UUID
 
-from talk.domain.model import Comment, Post, User, Vote
+from talk.domain.model import Comment, Invite, Post, User, Vote
 from talk.domain.value import (
     BlueskyDID,
     CommentId,
     Handle,
+    InviteId,
+    InviteStatus,
     PostId,
     PostType,
     UserId,
@@ -32,11 +34,12 @@ def row_to_user(row: Dict[str, Any]) -> User:
     """
     return User(
         id=UserId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
-        bluesky_did=BlueskyDID(value=row["bluesky_did"]),
-        handle=Handle(value=row["handle"]),
+        bluesky_did=BlueskyDID(root=row["bluesky_did"]),
+        handle=Handle(root=row["handle"]),
         display_name=row.get("display_name"),
         avatar_url=row.get("avatar_url"),
         karma=row["karma"],
+        invite_quota=row.get("invite_quota", 5),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -72,7 +75,7 @@ def row_to_post(row: Dict[str, Any]) -> Post:
             if isinstance(row["author_id"], str)
             else row["author_id"]
         ),
-        author_handle=Handle(value=row["author_handle"]),
+        author_handle=Handle(root=row["author_handle"]),
         url=row.get("url"),
         text=row.get("text"),
         points=row["points"],
@@ -114,7 +117,7 @@ def row_to_comment(row: Dict[str, Any]) -> Comment:
             if isinstance(row["author_id"], str)
             else row["author_id"]
         ),
-        author_handle=Handle(value=row["author_handle"]),
+        author_handle=Handle(root=row["author_handle"]),
         text=row["text"],
         parent_id=CommentId(
             UUID(row["parent_id"])
@@ -177,3 +180,47 @@ def vote_to_dict(vote: Vote) -> Dict[str, Any]:
         Dict suitable for database insertion/update
     """
     return vote.model_dump()
+
+
+def row_to_invite(row: Dict[str, Any]) -> Invite:
+    """Convert database row to Invite domain model.
+
+    Args:
+        row: Database row as dict
+
+    Returns:
+        Invite domain model
+    """
+    return Invite(
+        id=InviteId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
+        inviter_id=UserId(
+            UUID(row["inviter_id"])
+            if isinstance(row["inviter_id"], str)
+            else row["inviter_id"]
+        ),
+        invitee_handle=Handle(root=row["invitee_handle"]),
+        status=InviteStatus(row["status"]),
+        created_at=row["created_at"],
+        accepted_at=row.get("accepted_at"),
+        accepted_by_user_id=UserId(
+            UUID(row["accepted_by_user_id"])
+            if isinstance(row["accepted_by_user_id"], str)
+            else row["accepted_by_user_id"]
+        )
+        if row.get("accepted_by_user_id")
+        else None,
+    )
+
+
+def invite_to_dict(invite: Invite) -> Dict[str, Any]:
+    """Convert Invite domain model to database dict.
+
+    Args:
+        invite: Invite domain model
+
+    Returns:
+        Dict suitable for database insertion/update
+    """
+    # Handle and InviteStatus are automatically serialized by model_dump()
+    # thanks to @model_serializer on Handle and Pydantic's enum serialization
+    return invite.model_dump()

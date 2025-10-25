@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from talk.domain.model.user import User
 from talk.domain.repository import UserRepository
-from talk.domain.service import AuthService, JWTService
+from talk.domain.service import AuthService, InviteService, JWTService
 from talk.domain.value import UserId
 from talk.domain.value.types import BlueskyDID, Handle
 
@@ -23,7 +23,7 @@ class LoginResponse(BaseModel):
 
     token: str
     user_id: str
-    handle: str
+    handle: Handle
 
 
 class LoginUseCase:
@@ -34,6 +34,7 @@ class LoginUseCase:
         auth_service: AuthService,
         jwt_service: JWTService,
         user_repository: UserRepository,
+        invite_service: InviteService,
     ) -> None:
         """Initialize login use case.
 
@@ -41,10 +42,12 @@ class LoginUseCase:
             auth_service: Authentication domain service
             jwt_service: JWT token domain service
             user_repository: User repository
+            invite_service: Invite domain service
         """
         self.auth_service = auth_service
         self.jwt_service = jwt_service
         self.user_repository = user_repository
+        self.invite_service = invite_service
 
     async def execute(self, request: LoginRequest) -> LoginResponse:
         """Execute login flow.
@@ -67,7 +70,8 @@ class LoginUseCase:
         user_auth_info = await self.auth_service.authenticate_with_code(request.code)
 
         # Create or update user
-        did = BlueskyDID(value=user_auth_info.did)
+        did = BlueskyDID(root=user_auth_info.did)
+        handle = Handle(root=user_auth_info.handle)
         existing_user = await self.user_repository.find_by_bluesky_did(did)
 
         if existing_user:
@@ -75,27 +79,40 @@ class LoginUseCase:
             user = User(
                 id=existing_user.id,
                 bluesky_did=did,
-                handle=Handle(value=user_auth_info.handle),
+                handle=handle,
                 display_name=user_auth_info.display_name,
                 avatar_url=user_auth_info.avatar_url,
                 karma=existing_user.karma,
+                invite_quota=existing_user.invite_quota,
                 created_at=existing_user.created_at,
                 updated_at=datetime.now(),
             )
             await self.user_repository.save(user)
         else:
+            # Check if user has invite (required for new users)
+            has_invite = await self.invite_service.check_invite_exists(handle)
+            if not has_invite:
+                raise ValueError(
+                    "No invite found. This platform is currently invite-only."
+                )
+
             # Create new user
+            user_id = UserId(uuid4())
             user = User(
-                id=UserId(uuid4()),
+                id=user_id,
                 bluesky_did=did,
-                handle=Handle(value=user_auth_info.handle),
+                handle=handle,
                 display_name=user_auth_info.display_name,
                 avatar_url=user_auth_info.avatar_url,
                 karma=0,
+                invite_quota=5,  # Default quota for new users
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
             )
             await self.user_repository.save(user)
+
+            # Mark invite as accepted
+            await self.invite_service.accept_invite(handle, user_id)
 
         # Generate JWT token
         token = self.jwt_service.create_token(
@@ -107,5 +124,5 @@ class LoginUseCase:
         return LoginResponse(
             token=token,
             user_id=str(user.id),
-            handle=user_auth_info.handle,
+            handle=user.handle,
         )

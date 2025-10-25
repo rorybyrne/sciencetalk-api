@@ -25,5 +25,6 @@ class User(DomainModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
     karma: int = Field(default=0, ge=0)
+    invite_quota: int = Field(default=5, ge=0)  # Number of invites user can send
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

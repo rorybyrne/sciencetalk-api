@@ -1,0 +1,1 @@
+"""Invite use case tests."""

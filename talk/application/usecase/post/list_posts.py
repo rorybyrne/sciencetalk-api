@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from talk.domain.repository.post import PostRepository, PostSortOrder
 from talk.domain.value import PostType
+from talk.domain.value.types import Handle
 
 
 class PostListItem(BaseModel):
@@ -15,7 +16,7 @@ class PostListItem(BaseModel):
     title: str
     type: PostType
     author_id: str
-    author_handle: str
+    author_handle: Handle
     url: str | None
     points: int
     comment_count: int
@@ -76,7 +77,7 @@ class ListPostsUseCase:
                 title=post.title,
                 type=post.type,
                 author_id=str(post.author_id),
-                author_handle=post.author_handle.value,
+                author_handle=post.author_handle,
                 url=post.url,
                 points=post.points,
                 comment_count=post.comment_count,

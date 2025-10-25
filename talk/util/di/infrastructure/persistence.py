@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from talk.config import Settings
 from talk.domain.repository import (
     CommentRepository,
+    InviteRepository,
     PostRepository,
     UserRepository,
     VoteRepository,
@@ -15,6 +16,7 @@ from talk.domain.repository import (
 from talk.persistence.database import create_engine, create_session_factory
 from talk.persistence.repository import (
     PostgresCommentRepository,
+    PostgresInviteRepository,
     PostgresPostRepository,
     PostgresUserRepository,
     PostgresVoteRepository,
@@ -74,3 +76,8 @@ class ProdPersistenceProvider(PersistenceProvider):
     def get_vote_repository(self, session: AsyncSession) -> VoteRepository:
         """Provide Vote repository."""
         return PostgresVoteRepository(session)
+
+    @provide(scope=Scope.REQUEST)
+    def get_invite_repository(self, session: AsyncSession) -> InviteRepository:
+        """Provide Invite repository."""
+        return PostgresInviteRepository(session)

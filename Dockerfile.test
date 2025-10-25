@@ -1,0 +1,35 @@
+# Dockerfile for running tests in Docker
+# This includes all test dependencies and test files
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install uv
+
+# Copy dependency files and source code
+COPY pyproject.toml uv.lock README.md ./
+COPY talk/ ./talk/
+COPY tests/ ./tests/
+COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
+COPY alembic.ini ./
+
+# Install all dependencies including dev dependencies (pytest, etc.)
+RUN uv sync --frozen --all-groups
+
+# Set environment variables
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app"
+
+# Default command runs tests
+CMD ["/app/.venv/bin/pytest", "tests/integration", "-v"]

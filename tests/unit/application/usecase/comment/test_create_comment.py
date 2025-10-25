@@ -38,14 +38,14 @@ class TestCreateCommentUseCase:
 
         post_id = PostId(uuid4())
         author_id = UserId(uuid4())
-        author_handle = "user.bsky.social"
+        author_handle = Handle(root="user.bsky.social")
         text = "Test comment"
 
         post = Post(
             id=post_id,
             type=PostType.DISCUSSION,
             author_id=UserId(uuid4()),
-            author_handle=Handle(value="author.bsky.social"),
+            author_handle=Handle(root="author.bsky.social"),
             title="Test Post",
             url=None,
             text="Test content",
@@ -94,7 +94,7 @@ class TestCreateCommentUseCase:
             post_id=str(post_id),
             text="Test comment",
             author_id=str(uuid4()),
-            author_handle="user.bsky.social",
+            author_handle=Handle(root="user.bsky.social"),
             parent_id=None,
         )
 

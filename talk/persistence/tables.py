@@ -34,6 +34,7 @@ users_table = Table(
     Column("display_name", String(255), nullable=True),
     Column("avatar_url", Text, nullable=True),
     Column("karma", Integer, nullable=False, server_default="0"),
+    Column("invite_quota", Integer, nullable=False, server_default="5"),
     Column(
         "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     ),
@@ -161,3 +162,49 @@ votes_table = Table(
 
 Index("idx_votes_user_id", votes_table.c.user_id)
 Index("idx_votes_votable", votes_table.c.votable_type, votes_table.c.votable_id)
+
+# ============================================================================
+# INVITES TABLE
+# ============================================================================
+invites_table = Table(
+    "invites",
+    metadata,
+    Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
+    Column(
+        "inviter_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("invitee_handle", String(255), nullable=False),
+    Column(
+        "status",
+        Enum("pending", "accepted", name="invite_status", create_type=False),
+        nullable=False,
+        server_default="pending",
+    ),
+    Column(
+        "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+    Column("accepted_at", TIMESTAMP(timezone=True), nullable=True),
+    Column(
+        "accepted_by_user_id",
+        UUID,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+)
+
+# Critical index for login check - must be fast
+Index(
+    "idx_invites_invitee_handle_status",
+    invites_table.c.invitee_handle,
+    invites_table.c.status,
+)
+Index("idx_invites_inviter_id", invites_table.c.inviter_id)
+
+# Partial unique constraint: only one pending invite per handle
+# Note: This will be created in migration with: CREATE UNIQUE INDEX ... WHERE status = 'pending'
+Index(
+    "idx_invites_unique_pending_handle",
+    invites_table.c.invitee_handle,
+    unique=True,
+    postgresql_where=invites_table.c.status == "pending",
+)

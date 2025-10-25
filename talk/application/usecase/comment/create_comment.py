@@ -16,7 +16,7 @@ class CreateCommentRequest(BaseModel):
     post_id: str  # UUID string
     text: str
     author_id: str  # User ID from authenticated user
-    author_handle: str  # Handle from authenticated user
+    author_handle: Handle  # Handle from authenticated user
     parent_id: str | None = None  # Parent comment ID for replies
 
 
@@ -79,7 +79,7 @@ class CreateCommentUseCase:
         comment = await self.comment_service.create_comment(
             post_id=post_id,
             author_id=UserId(UUID(request.author_id)),
-            author_handle=Handle(value=request.author_handle),
+            author_handle=request.author_handle,
             text=request.text,
             parent_id=parent_comment_id,
         )

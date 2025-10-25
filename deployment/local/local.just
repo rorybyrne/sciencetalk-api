@@ -37,9 +37,18 @@ clean:
 db-connect:
     docker compose -f docker-compose.yml exec postgres psql -U talk -d talk
 
-# Reset database (stop, remove volume, restart)
-db-reset:
+# Reset database (stop, remove volume)
+wipe:
     docker compose -f docker-compose.yml down -v
-    docker compose -f docker-compose.yml up -d postgres
-    sleep 5
-    docker compose -f docker-compose.yml up -d api
+
+# Run integration tests in Docker
+test-integration:
+    docker compose -f docker-compose.yml --profile test up --build --abort-on-container-exit test
+
+# Run integration tests and keep containers running for debugging
+test-integration-debug:
+    docker compose -f docker-compose.yml --profile test up --build test
+
+# View test logs
+test-logs:
+    docker compose -f docker-compose.yml logs test

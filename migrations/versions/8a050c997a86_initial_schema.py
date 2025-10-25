@@ -5,6 +5,7 @@ Create the foundational schema for Science Talk:
 - Posts (6 types: result, method, review, discussion, ask, tool)
 - Comments (nested/threaded with unlimited depth)
 - Votes (upvote-only system)
+- Invites (invite-only user onboarding)
 
 Revision ID: 8a050c997a86
 Revises:
@@ -59,6 +60,14 @@ def upgrade() -> None:
         END $$;
     """)
 
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE invite_status AS ENUM ('pending', 'accepted');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+
     # ========================================================================
     # USERS table
     # ========================================================================
@@ -75,6 +84,7 @@ def upgrade() -> None:
         sa.Column("display_name", sa.String(255), nullable=True),
         sa.Column("avatar_url", sa.Text(), nullable=True),
         sa.Column("karma", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("invite_quota", sa.Integer(), nullable=False, server_default="5"),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -245,6 +255,55 @@ def upgrade() -> None:
     op.create_index("idx_votes_votable", "votes", ["votable_type", "votable_id"])
 
     # ========================================================================
+    # INVITES table
+    # ========================================================================
+    op.create_table(
+        "invites",
+        sa.Column(
+            "id",
+            sa.UUID(),
+            server_default=sa.text("uuid_generate_v4()"),
+            nullable=False,
+        ),
+        sa.Column("inviter_id", sa.UUID(), nullable=False),
+        sa.Column("invitee_handle", sa.String(255), nullable=False),
+        sa.Column(
+            "status",
+            postgresql.ENUM(
+                "pending", "accepted", name="invite_status", create_type=False
+            ),
+            nullable=False,
+            server_default="pending",
+        ),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.Column("accepted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("accepted_by_user_id", sa.UUID(), nullable=True),
+        sa.ForeignKeyConstraint(["inviter_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["accepted_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Critical index for login check - must be fast
+    op.create_index(
+        "idx_invites_invitee_handle_status", "invites", ["invitee_handle", "status"]
+    )
+    op.create_index("idx_invites_inviter_id", "invites", ["inviter_id"])
+
+    # Partial unique constraint: only one pending invite per handle
+    op.execute("""
+        CREATE UNIQUE INDEX idx_invites_unique_pending_handle
+        ON invites (invitee_handle)
+        WHERE status = 'pending'
+    """)
+
+    # ========================================================================
     # TRIGGERS
     # ========================================================================
 
@@ -319,12 +378,14 @@ def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS update_updated_at_column()")
 
     # Drop tables (in reverse order of dependencies)
+    op.drop_table("invites")
     op.drop_table("votes")
     op.drop_table("comments")
     op.drop_table("posts")
     op.drop_table("users")
 
     # Drop ENUM types
+    op.execute("DROP TYPE IF EXISTS invite_status")
     op.execute("DROP TYPE IF EXISTS vote_type")
     op.execute("DROP TYPE IF EXISTS votable_type")
     op.execute("DROP TYPE IF EXISTS post_type")

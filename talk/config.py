@@ -3,6 +3,8 @@
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from talk.domain.value.types import Handle
+
 
 class DatabaseSettings(BaseModel):
     """Database configuration."""
@@ -27,6 +29,13 @@ class AuthSettings(BaseModel):
 
     # AT Protocol
     atproto_pds_url: str = "https://bsky.social"
+
+
+class InvitationSettings(BaseModel):
+    """Invitation configuration."""
+
+    # List of Bluesky handles (e.g., Handle(root="user.bsky.social")) that can invite without limits
+    unlimited_inviters: list[Handle] = []
 
 
 class APISettings(BaseModel):
@@ -54,6 +63,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = DatabaseSettings()
     auth: AuthSettings = AuthSettings()
     api: APISettings = APISettings()
+    invitations: InvitationSettings = InvitationSettings()
 
     @property
     def database_url(self) -> str:

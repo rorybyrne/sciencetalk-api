@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from talk.interface.api.routes import auth, comments, health, posts, votes
+from talk.interface.api.routes import auth, comments, health, invites, posts, votes
 from talk.util.di.container import create_container, setup_di
 
 
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app_instance.include_router(posts.router)
     app_instance.include_router(comments.router)
     app_instance.include_router(votes.router)
+    app_instance.include_router(invites.router)
 
     # TODO: Add error handlers
     # TODO: Add CORS middleware

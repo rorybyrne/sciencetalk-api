@@ -5,10 +5,16 @@ from dishka import Scope, provide
 from talk.adapter.bluesky.auth import BlueskyAuthClient
 from talk.util.di.base import ProviderBase
 from talk.config import AuthSettings
-from talk.domain.repository import CommentRepository, PostRepository, VoteRepository
+from talk.domain.repository import (
+    CommentRepository,
+    InviteRepository,
+    PostRepository,
+    VoteRepository,
+)
 from talk.domain.service import (
     AuthService,
     CommentService,
+    InviteService,
     JWTService,
     PostService,
     VoteService,
@@ -59,3 +65,8 @@ class ProdDomainProvider(ProviderBase):
             post_service=post_service,
             comment_service=comment_service,
         )
+
+    @provide
+    def get_invite_service(self, invite_repository: InviteRepository) -> InviteService:
+        """Provide invite domain service."""
+        return InviteService(invite_repository=invite_repository)

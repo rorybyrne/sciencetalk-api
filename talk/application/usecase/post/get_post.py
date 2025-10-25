@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from talk.domain.repository import PostRepository
 from talk.domain.value import PostId, PostType
+from talk.domain.value.types import Handle
 
 
 class GetPostRequest(BaseModel):
@@ -23,7 +24,7 @@ class GetPostResponse(BaseModel):
     title: str
     type: PostType
     author_id: str
-    author_handle: str
+    author_handle: Handle
     url: str | None
     text: str | None
     points: int
@@ -67,7 +68,7 @@ class GetPostUseCase:
             title=post.title,
             type=post.type,
             author_id=str(post.author_id),
-            author_handle=post.author_handle.value,
+            author_handle=post.author_handle,
             url=post.url,
             text=post.text,
             points=post.points,

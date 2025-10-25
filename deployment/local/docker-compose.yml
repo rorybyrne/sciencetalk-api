@@ -35,5 +35,29 @@ services:
       - ../../talk:/app/talk:ro
     restart: unless-stopped
 
+  test:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.test
+    container_name: talk-test
+    environment:
+      - DATABASE__URL=postgresql+asyncpg://talk:talk@postgres:5432/talk
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=talk
+      - ATPROTO_PDS_URL=https://bsky.social
+      - ENVIRONMENT=test
+      - DEBUG=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount source code for development (optional - can be removed for pure CI)
+      - ../../talk:/app/talk:ro
+      - ../../tests:/app/tests:ro
+    command: ["/app/scripts/run-integration-tests.sh"]
+    profiles:
+      - test  # Only run when explicitly requested with --profile test
+
 volumes:
   postgres_data:

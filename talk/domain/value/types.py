@@ -6,9 +6,9 @@ They encapsulate validation rules and business logic.
 
 from enum import Enum
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
 
-from talk.domain.value.common import ValueObject
+from talk.domain.value.common import RootValueObject, ValueObject
 
 
 class PostType(str, Enum):
@@ -58,45 +58,46 @@ class VotableType(str, Enum):
     COMMENT = "comment"
 
 
-class Handle(ValueObject):
+class InviteStatus(str, Enum):
+    """Status of an invite."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+
+
+class Handle(RootValueObject[str]):
     """Bluesky handle (e.g., username.bsky.social).
 
     Represents a user's human-readable identifier on the AT Protocol network.
     """
 
-    value: str = Field(min_length=1, max_length=255)
-
-    @field_validator("value")
+    @field_validator("root")
     @classmethod
     def validate_handle_format(cls, v: str) -> str:
         """Validate handle contains a dot (username.domain format)."""
         if "." not in v:
             raise ValueError("Handle must be in format: username.domain")
+        if len(v) < 1 or len(v) > 255:
+            raise ValueError("Handle must be 1-255 characters")
         return v
 
-    def __str__(self) -> str:
-        return self.value
 
-
-class BlueskyDID(ValueObject):
+class BlueskyDID(RootValueObject[str]):
     """AT Protocol Decentralized Identifier (DID).
 
     A globally unique, persistent identifier for users on the AT Protocol network.
     Format: did:plc:<identifier> or did:web:<domain>
     """
 
-    value: str = Field(min_length=1, max_length=255)
-
-    @field_validator("value")
+    @field_validator("root")
     @classmethod
     def validate_did_format(cls, v: str) -> str:
         """Validate DID starts with 'did:'."""
         if not v.startswith("did:"):
             raise ValueError("DID must start with 'did:'")
+        if len(v) < 1 or len(v) > 255:
+            raise ValueError("DID must be 1-255 characters")
         return v
-
-    def __str__(self) -> str:
-        return self.value
 
 
 class UserAuthInfo(ValueObject):

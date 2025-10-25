@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from talk.domain.service import CommentService
 from talk.domain.value import PostId
+from talk.domain.value.types import Handle
 
 
 class CommentItem(BaseModel):
@@ -15,7 +16,7 @@ class CommentItem(BaseModel):
     comment_id: str
     post_id: str
     author_id: str
-    author_handle: str
+    author_handle: Handle
     text: str
     parent_id: str | None
     depth: int
@@ -75,7 +76,7 @@ class GetCommentsUseCase:
                 comment_id=str(comment.id),
                 post_id=str(comment.post_id),
                 author_id=str(comment.author_id),
-                author_handle=comment.author_handle.value,
+                author_handle=comment.author_handle,
                 text=comment.text,
                 parent_id=str(comment.parent_id) if comment.parent_id else None,
                 depth=comment.depth,

@@ -1,13 +1,15 @@
 """Application layer DI providers."""
 
 from dishka import Scope, provide
-from talk.util.di.base import ProviderBase
 
+from talk.config import Settings
+from talk.util.di.base import ProviderBase
 from talk.application.usecase.auth import GetCurrentUserUseCase, LoginUseCase
 from talk.application.usecase.comment import (
     CreateCommentUseCase,
     GetCommentsUseCase,
 )
+from talk.application.usecase.invite import CreateInvitesUseCase
 from talk.application.usecase.post import (
     CreatePostUseCase,
     GetPostUseCase,
@@ -18,6 +20,7 @@ from talk.domain.repository import PostRepository, UserRepository
 from talk.domain.service import (
     AuthService,
     CommentService,
+    InviteService,
     JWTService,
     PostService,
     VoteService,
@@ -34,22 +37,28 @@ class ProdApplicationProvider(ProviderBase):
         auth_service: AuthService,
         jwt_service: JWTService,
         user_repository: UserRepository,
+        invite_service: InviteService,
     ) -> LoginUseCase:
         """Provide login use case."""
         return LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
             user_repository=user_repository,
+            invite_service=invite_service,
         )
 
     @provide(scope=Scope.REQUEST)
     def get_current_user_use_case(
-        self, jwt_service: JWTService, user_repository: UserRepository
+        self,
+        jwt_service: JWTService,
+        user_repository: UserRepository,
+        invite_service: InviteService,
     ) -> GetCurrentUserUseCase:
         """Provide get current user use case."""
         return GetCurrentUserUseCase(
             jwt_service=jwt_service,
             user_repository=user_repository,
+            invite_service=invite_service,
         )
 
     # Post use cases
@@ -100,3 +109,18 @@ class ProdApplicationProvider(ProviderBase):
     def get_remove_vote_use_case(self, vote_service: VoteService) -> RemoveVoteUseCase:
         """Provide remove vote use case."""
         return RemoveVoteUseCase(vote_service=vote_service)
+
+    # Invite use cases
+    @provide(scope=Scope.REQUEST)
+    def get_create_invites_use_case(
+        self,
+        invite_service: InviteService,
+        user_repository: UserRepository,
+        settings: Settings,
+    ) -> CreateInvitesUseCase:
+        """Provide create invites use case."""
+        return CreateInvitesUseCase(
+            invite_service=invite_service,
+            user_repository=user_repository,
+            settings=settings,
+        )
