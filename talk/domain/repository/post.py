@@ -101,3 +101,26 @@ class PostRepository(ABC):
             post_id: The post ID to delete
         """
         pass
+
+    @abstractmethod
+    async def increment_points(self, post_id: PostId) -> None:
+        """Atomically increment points by 1.
+
+        Uses SQL-level increment to avoid race conditions.
+
+        Args:
+            post_id: The post ID
+        """
+        pass
+
+    @abstractmethod
+    async def decrement_points(self, post_id: PostId) -> None:
+        """Atomically decrement points by 1 (minimum 1).
+
+        Uses SQL-level decrement to avoid race conditions.
+        Will not decrement below 1 (business rule).
+
+        Args:
+            post_id: The post ID
+        """
+        pass

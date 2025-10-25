@@ -97,3 +97,16 @@ class BlueskyDID(ValueObject):
 
     def __str__(self) -> str:
         return self.value
+
+
+class UserAuthInfo(ValueObject):
+    """User authentication information from external provider.
+
+    Represents the authenticated user's identity and profile information
+    obtained from an OAuth provider (e.g., Bluesky).
+    """
+
+    did: str
+    handle: str
+    display_name: str | None = None
+    avatar_url: str | None = None

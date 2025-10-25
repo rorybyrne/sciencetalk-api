@@ -1,9 +1,102 @@
 """Application layer DI providers."""
 
-from dishka import Provider, Scope
+from dishka import Scope, provide
+from talk.util.di.base import ProviderBase
+
+from talk.application.usecase.auth import GetCurrentUserUseCase, LoginUseCase
+from talk.application.usecase.comment import (
+    CreateCommentUseCase,
+    GetCommentsUseCase,
+)
+from talk.application.usecase.post import (
+    CreatePostUseCase,
+    GetPostUseCase,
+    ListPostsUseCase,
+)
+from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
+from talk.domain.repository import PostRepository, UserRepository
+from talk.domain.service import (
+    AuthService,
+    CommentService,
+    JWTService,
+    PostService,
+    VoteService,
+)
 
 
-class ApplicationProvider(Provider):
-    """Application use cases provider."""
+class ProdApplicationProvider(ProviderBase):
+    """Production application use cases provider - concrete, no mocks needed."""
 
-    scope = Scope.APP
+    # Auth use cases
+    @provide(scope=Scope.REQUEST)
+    def get_login_use_case(
+        self,
+        auth_service: AuthService,
+        jwt_service: JWTService,
+        user_repository: UserRepository,
+    ) -> LoginUseCase:
+        """Provide login use case."""
+        return LoginUseCase(
+            auth_service=auth_service,
+            jwt_service=jwt_service,
+            user_repository=user_repository,
+        )
+
+    @provide(scope=Scope.REQUEST)
+    def get_current_user_use_case(
+        self, jwt_service: JWTService, user_repository: UserRepository
+    ) -> GetCurrentUserUseCase:
+        """Provide get current user use case."""
+        return GetCurrentUserUseCase(
+            jwt_service=jwt_service,
+            user_repository=user_repository,
+        )
+
+    # Post use cases
+    @provide(scope=Scope.REQUEST)
+    def get_create_post_use_case(
+        self, post_repository: PostRepository
+    ) -> CreatePostUseCase:
+        """Provide create post use case."""
+        return CreatePostUseCase(post_repository=post_repository)
+
+    @provide(scope=Scope.REQUEST)
+    def get_get_post_use_case(self, post_repository: PostRepository) -> GetPostUseCase:
+        """Provide get post use case."""
+        return GetPostUseCase(post_repository=post_repository)
+
+    @provide(scope=Scope.REQUEST)
+    def get_list_posts_use_case(
+        self, post_repository: PostRepository
+    ) -> ListPostsUseCase:
+        """Provide list posts use case."""
+        return ListPostsUseCase(post_repository=post_repository)
+
+    # Comment use cases
+    @provide(scope=Scope.REQUEST)
+    def get_create_comment_use_case(
+        self, comment_service: CommentService, post_service: PostService
+    ) -> CreateCommentUseCase:
+        """Provide create comment use case."""
+        return CreateCommentUseCase(
+            comment_service=comment_service,
+            post_service=post_service,
+        )
+
+    @provide(scope=Scope.REQUEST)
+    def get_get_comments_use_case(
+        self, comment_service: CommentService
+    ) -> GetCommentsUseCase:
+        """Provide get comments use case."""
+        return GetCommentsUseCase(comment_service=comment_service)
+
+    # Vote use cases
+    @provide(scope=Scope.REQUEST)
+    def get_upvote_use_case(self, vote_service: VoteService) -> UpvoteUseCase:
+        """Provide upvote use case."""
+        return UpvoteUseCase(vote_service=vote_service)
+
+    @provide(scope=Scope.REQUEST)
+    def get_remove_vote_use_case(self, vote_service: VoteService) -> RemoveVoteUseCase:
+        """Provide remove vote use case."""
+        return RemoveVoteUseCase(vote_service=vote_service)

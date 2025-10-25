@@ -30,13 +30,6 @@ lint-file file:
     - uv run ruff check {{file}}
     - uv run pyright {{file}}
 
-# Development commands
-dev:
-    uv run uvicorn blank.interface.api.app:app --reload --host 0.0.0.0 --port 8000
-
-install:
-    uv sync
-
 # Docker commands (standalone)
 docker-build:
     docker build -t talk-api:latest .
@@ -47,41 +40,11 @@ docker-run PORT="8000":
 docker-serve PORT="8000":
     just docker-build && docker run -p {{PORT}}:8000 --env-file .env talk-api:latest
 
-docker-shell:
-    just docker-build
+docker-shell docker-build:
     docker run -it --rm talk-api:latest bash
 
 docker-stop:
     docker stop talk-api && docker rm talk-api || true
-
-# Local development environment (with compose)
-local-up:
-    just local compose-up
-
-local-down:
-    just local compose-down
-
-local-logs:
-    just local compose-logs
-
-local-restart:
-    just local compose-restart
-
-local-rebuild:
-    just local compose-rebuild
-
-local-rebuild-no-cache:
-    just local compose-rebuild-no-cache
-
-local-clean:
-    just local docker-clean
-
-# Database commands
-db-connect:
-    just local db-connect
-
-db-reset:
-    just local db-reset
 
 # Run database migrations
 db-migrate:
@@ -98,12 +61,3 @@ db-history:
 # Show current migration version
 db-current:
     uv run alembic current
-
-# Full development workflow
-setup: install local-up
-    @echo "Development environment ready!"
-    @echo "API: http://localhost:8000"
-    @echo "Health: http://localhost:8000/health"
-
-clean: local-down local-clean
-    @echo "All services stopped and cleaned up"

@@ -1,27 +1,61 @@
 """Application configuration."""
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class DatabaseSettings(BaseModel):
+    """Database configuration."""
+
+    url: str = "postgresql+asyncpg://talk:talk@localhost:5432/talk"
+    pool_size: int = 5
+    max_overflow: int = 10
+
+
+class AuthSettings(BaseModel):
+    """Authentication configuration."""
+
+    # JWT settings
+    jwt_secret: str = "CHANGE_ME_IN_PRODUCTION"  # Must be overridden in production
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_days: int = 30
+
+    # Bluesky OAuth
+    bluesky_client_id: str = ""
+    bluesky_client_secret: str = ""
+    bluesky_redirect_uri: str = "http://localhost:8000/auth/callback"
+
+    # AT Protocol
+    atproto_pds_url: str = "https://bsky.social"
+
+
+class APISettings(BaseModel):
+    """API configuration."""
+
+    host: str = "localhost"
+    port: int = 8000
+    frontend_url: str = "http://localhost:3000"  # For post-login redirect
 
 
 class Settings(BaseSettings):
     """Application settings."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",  # Allows DATABASE__URL syntax
+    )
 
     # Environment
     environment: str = "development"
     debug: bool = False
 
-    # API
-    api_host: str = "localhost"
-    api_port: int = 8000
+    # Nested settings
+    database: DatabaseSettings = DatabaseSettings()
+    auth: AuthSettings = AuthSettings()
+    api: APISettings = APISettings()
 
-    # Database
-    database_url: str = "postgresql+asyncpg://talk:talk@localhost:5432/talk"
-
-    # AT Protocol / Bluesky
-    atproto_pds_url: str = "https://bsky.social"  # Public Data Server URL
-
-    # External providers (legacy - can be removed if not needed)
-    provider1_api_key: str = ""
-    provider2_endpoint: str = ""
+    @property
+    def database_url(self) -> str:
+        """Backwards compatibility for database_url."""
+        return self.database.url

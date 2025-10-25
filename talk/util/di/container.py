@@ -1,33 +1,25 @@
 """Dependency injection container."""
 
-from dishka import Container, make_container
+from dishka import AsyncContainer, make_async_container
 from dishka.integrations.fastapi import setup_dishka
 
-from talk.config import Settings
-
-from .application import ApplicationProvider
-from .domain import DomainProvider
-from .persistence import PersistenceProvider
+from talk.util.di import PROVIDERS, get_provider
 
 
-def create_container(settings: Settings) -> Container:
-    """Create DI container with all providers.
+def create_container() -> AsyncContainer:
+    """Build production container (all prod implementations).
 
-    Args:
-        settings: Application settings
+    Settings are loaded from environment variables automatically.
 
     Returns:
-        Configured DI container
+        Configured DI container with production providers
     """
-    container = make_container(
-        DomainProvider(),
-        PersistenceProvider(settings),
-        ApplicationProvider(),
-    )
-    return container
+    # Get provider instances - all are instantiated without arguments
+    provider_instances = [get_provider(base, use_mock=False)() for base in PROVIDERS]
+    return make_async_container(*provider_instances)
 
 
-def setup_di(app, container: Container) -> None:
+def setup_di(app, container: AsyncContainer) -> None:
     """Setup dependency injection for FastAPI.
 
     Args:

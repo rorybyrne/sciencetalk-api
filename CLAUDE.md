@@ -2,7 +2,7 @@
 
 ## 🎯 Project Overview
 
-This is a **Domain-Driven Design (DDD) template** following clean architecture principles with a 4-layer structure. It provides a production-ready foundation for building business applications with clear separation of concerns, comprehensive testing, and modern development tooling.
+This is a **Domain-Driven Design (DDD) project** following clean architecture principles with a 4-layer structure. It provides a production-ready foundation for building business applications with clear separation of concerns, comprehensive testing, and modern development tooling.
 
 ## 🔬 Business Domain: Science Talk
 

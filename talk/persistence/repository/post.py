@@ -100,11 +100,42 @@ class PostgresPostRepository(PostRepository):
             stmt = posts_table.insert().values(**post_dict)
             await self.session.execute(stmt)
 
-        await self.session.commit()
+        await self.session.flush()
         return post
 
     async def delete(self, post_id: PostId) -> None:
         """Delete a post (hard delete)."""
         stmt = posts_table.delete().where(posts_table.c.id == post_id)
         await self.session.execute(stmt)
-        await self.session.commit()
+        await self.session.flush()
+
+    async def increment_points(self, post_id: PostId) -> None:
+        """Atomically increment points by 1."""
+        from datetime import datetime
+
+        stmt = (
+            posts_table.update()
+            .where(posts_table.c.id == post_id)
+            .values(
+                points=posts_table.c.points + 1,
+                updated_at=datetime.now(),
+            )
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+
+    async def decrement_points(self, post_id: PostId) -> None:
+        """Atomically decrement points by 1 (minimum 1)."""
+        from datetime import datetime
+
+        stmt = (
+            posts_table.update()
+            .where(posts_table.c.id == post_id)
+            .where(posts_table.c.points > 1)  # Don't go below 1
+            .values(
+                points=posts_table.c.points - 1,
+                updated_at=datetime.now(),
+            )
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()

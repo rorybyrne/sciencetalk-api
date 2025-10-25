@@ -1,52 +1,35 @@
 # Local deployment commands
 
-# Build Docker image
-docker-build:
-    docker build -t talk-api:latest .
-
-# Run Docker container
-docker-run:
-    docker run -p 8000:8000 --env-file .env talk-api:latest
-
-# Stop and remove Docker container
-docker-stop:
-    docker stop talk-api || true
-    docker rm talk-api || true
-
 # Start local development environment with docker compose
-compose-up:
+up:
     docker compose -f docker-compose.yml up -d
 
+# show status
+ps:
+    docker compose -f docker-compose.yml ps
+
 # Stop local development environment
-compose-down:
+down:
     docker compose -f docker-compose.yml down
 
 # View logs from all services
-compose-logs:
-    docker compose -f docker-compose.yml logs -f
-
-# View logs from specific service
-compose-logs-api:
-    docker compose -f docker-compose.yml logs -f api
-
-compose-logs-db:
-    docker compose -f docker-compose.yml logs -f postgres
+logs SERVICE="":
+    docker compose -f docker-compose.yml logs -f {{SERVICE}}
 
 # Restart all services
-compose-restart:
+restart:
     docker compose -f docker-compose.yml restart
 
-# Rebuild and restart services
-compose-rebuild:
+rebuild-all:
     docker compose -f docker-compose.yml up -d --build
 
 # Rebuild without cache and restart services
-compose-rebuild-no-cache:
+rebuild-all-full:
     docker compose -f docker-compose.yml build --no-cache
     docker compose -f docker-compose.yml up -d
 
 # Clean up Docker resources
-docker-clean:
+clean:
     docker system prune -f
     docker volume prune -f
 

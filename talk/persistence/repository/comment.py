@@ -102,7 +102,7 @@ class PostgresCommentRepository(CommentRepository):
             stmt = comments_table.insert().values(**comment_dict)
             await self.session.execute(stmt)
 
-        await self.session.commit()
+        await self.session.flush()
 
         # Fetch the comment back to get the path/depth set by trigger
         return await self.find_by_id(comment.id) or comment
@@ -111,7 +111,7 @@ class PostgresCommentRepository(CommentRepository):
         """Delete a comment (hard delete)."""
         stmt = comments_table.delete().where(comments_table.c.id == comment_id)
         await self.session.execute(stmt)
-        await self.session.commit()
+        await self.session.flush()
 
     async def count_by_post(self, post_id: PostId) -> int:
         """Count comments for a post (excluding deleted)."""
@@ -123,3 +123,34 @@ class PostgresCommentRepository(CommentRepository):
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
+
+    async def increment_points(self, comment_id: CommentId) -> None:
+        """Atomically increment points by 1."""
+        from datetime import datetime
+
+        stmt = (
+            comments_table.update()
+            .where(comments_table.c.id == comment_id)
+            .values(
+                points=comments_table.c.points + 1,
+                updated_at=datetime.now(),
+            )
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+
+    async def decrement_points(self, comment_id: CommentId) -> None:
+        """Atomically decrement points by 1 (minimum 1)."""
+        from datetime import datetime
+
+        stmt = (
+            comments_table.update()
+            .where(comments_table.c.id == comment_id)
+            .where(comments_table.c.points > 1)  # Don't go below 1
+            .values(
+                points=comments_table.c.points - 1,
+                updated_at=datetime.now(),
+            )
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()

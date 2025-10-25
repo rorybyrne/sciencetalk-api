@@ -5,6 +5,7 @@ from talk.domain.value.types import (
     BlueskyDID,
     Handle,
     PostType,
+    UserAuthInfo,
     VotableType,
     VoteType,
 )
@@ -21,4 +22,5 @@ __all__ = [
     "VotableType",
     "Handle",
     "BlueskyDID",
+    "UserAuthInfo",
 ]

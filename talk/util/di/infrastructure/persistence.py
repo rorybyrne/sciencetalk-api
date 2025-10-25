@@ -1,8 +1,8 @@
-"""Persistence layer DI providers."""
+"""Persistence infrastructure providers."""
 
 from collections.abc import AsyncIterator
 
-from dishka import Provider, Scope, provide
+from dishka import Scope, provide
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from talk.config import Settings
@@ -19,21 +19,26 @@ from talk.persistence.repository import (
     PostgresUserRepository,
     PostgresVoteRepository,
 )
+from talk.util.di.base import ProviderBase
 
 
-class PersistenceProvider(Provider):
-    """Provides persistence layer dependencies."""
+class PersistenceProvider(ProviderBase):
+    """Persistence component base."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__()
-        self.settings = settings
+    __mock_component__ = "persistence"
+
+
+class ProdPersistenceProvider(PersistenceProvider):
+    """Production persistence provider using PostgreSQL."""
+
+    __is_mock__ = False
 
     scope = Scope.APP
 
     @provide(scope=Scope.APP)
-    def get_engine(self) -> AsyncEngine:
+    def get_engine(self, settings: Settings) -> AsyncEngine:
         """Provide database engine."""
-        return create_engine(self.settings)
+        return create_engine(settings)
 
     @provide(scope=Scope.APP)
     def get_session_factory(

@@ -122,3 +122,26 @@ class CommentRepository(ABC):
             Number of comments
         """
         pass
+
+    @abstractmethod
+    async def increment_points(self, comment_id: CommentId) -> None:
+        """Atomically increment points by 1.
+
+        Uses SQL-level increment to avoid race conditions.
+
+        Args:
+            comment_id: The comment ID
+        """
+        pass
+
+    @abstractmethod
+    async def decrement_points(self, comment_id: CommentId) -> None:
+        """Atomically decrement points by 1 (minimum 1).
+
+        Uses SQL-level decrement to avoid race conditions.
+        Will not decrement below 1 (business rule).
+
+        Args:
+            comment_id: The comment ID
+        """
+        pass
