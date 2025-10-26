@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from talk.config import Settings
 from talk.domain.model.user import User
 from talk.domain.repository import UserRepository
 from talk.domain.service import AuthService, InviteService, JWTService
@@ -40,6 +41,7 @@ class LoginUseCase:
         jwt_service: JWTService,
         user_repository: UserRepository,
         invite_service: InviteService,
+        settings: Settings,
     ) -> None:
         """Initialize login use case.
 
@@ -48,11 +50,13 @@ class LoginUseCase:
             jwt_service: JWT token domain service
             user_repository: User repository
             invite_service: Invite domain service
+            settings: Application settings
         """
         self.auth_service = auth_service
         self.jwt_service = jwt_service
         self.user_repository = user_repository
         self.invite_service = invite_service
+        self.settings = settings
 
     async def execute(self, request: LoginRequest) -> LoginResponse:
         """Execute login flow.
@@ -98,12 +102,16 @@ class LoginUseCase:
             )
             await self.user_repository.save(user)
         else:
-            # Check if user has invite (required for new users)
-            has_invite = await self.invite_service.check_invite_exists(handle)
-            if not has_invite:
-                raise ValueError(
-                    "No invite found. This platform is currently invite-only."
-                )
+            # Check if user is a seed user (unlimited inviter)
+            is_seed_user = handle in self.settings.invitations.unlimited_inviters
+
+            if not is_seed_user:
+                # Check if user has invite (required for new non-seed users)
+                has_invite = await self.invite_service.check_invite_exists(handle)
+                if not has_invite:
+                    raise ValueError(
+                        "No invite found. This platform is currently invite-only."
+                    )
 
             # Create new user
             user_id = UserId(uuid4())
@@ -120,8 +128,9 @@ class LoginUseCase:
             )
             await self.user_repository.save(user)
 
-            # Mark invite as accepted
-            await self.invite_service.accept_invite(handle, user_id)
+            # Mark invite as accepted (only if not a seed user)
+            if not is_seed_user:
+                await self.invite_service.accept_invite(handle, user_id)
 
         # Generate JWT token
         token = self.jwt_service.create_token(
