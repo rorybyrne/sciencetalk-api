@@ -71,9 +71,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Save .env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE }}
         run: |
-          # Write secret to file
-          printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
+          # Write secret to file (using env var to avoid shell interpretation)
+          printf '%s\n' "$ENV_CONTENT" > .env
 
           # Extract AWS region for credentials step
           AWS_REGION=$(grep AWS_REGION .env | cut -d= -f2 | tr -d '"' | tr -d "'" | xargs)
