@@ -88,7 +88,11 @@ class TestLoginIntegration:
         assert saved_invite.invitee_handle.root == "user.bsky.social"
 
         # Act - New user logs in (MockBlueskyAuthClient will return user.bsky.social)
-        login_response = await login_use_case.execute(LoginRequest(code="oauth_123"))
+        login_response = await login_use_case.execute(
+            LoginRequest(
+                code="oauth_123", state="test_state", iss="https://bsky.social"
+            )
+        )
 
         # Assert - User was created
         assert login_response.token is not None
@@ -125,7 +129,11 @@ class TestLoginIntegration:
 
         # Act & Assert - Try to login without invite
         with pytest.raises(ValueError, match="No invite found.*invite-only"):
-            await login_use_case.execute(LoginRequest(code="oauth_123"))
+            await login_use_case.execute(
+                LoginRequest(
+                    code="oauth_123", state="test_state", iss="https://bsky.social"
+                )
+            )
 
         # Verify no user was created in database
         user = await user_repo.find_by_bluesky_did(BlueskyDID(root="did:plc:mock123"))

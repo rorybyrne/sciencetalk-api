@@ -10,9 +10,13 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.17.0",
     "asyncpg>=0.30.0",
+    "cryptography>=46.0.3",
     "dishka>=1.7.2",
+    "dnspython>=2.8.0",
     "fastapi>=0.119.1",
     "greenlet>=3.0.0",
+    "httpx>=0.28.1",
+    "jwcrypto>=1.5.6",
     "pydantic>=2.12.3",
     "pydantic-settings>=2.11.0",
     "pyjwt>=2.8.0",

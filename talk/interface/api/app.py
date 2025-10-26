@@ -2,7 +2,15 @@
 
 from fastapi import FastAPI
 
-from talk.interface.api.routes import auth, comments, health, invites, posts, votes
+from talk.interface.api.routes import (
+    auth,
+    comments,
+    health,
+    invites,
+    oauth_metadata,
+    posts,
+    votes,
+)
 from talk.util.di.container import create_container, setup_di
 
 
@@ -21,6 +29,9 @@ def create_app() -> FastAPI:
 
     # Register routes
     app_instance.include_router(health.router)
+    app_instance.include_router(
+        oauth_metadata.router
+    )  # OAuth client metadata (no prefix)
     app_instance.include_router(auth.router)
     app_instance.include_router(posts.router)
     app_instance.include_router(comments.router)

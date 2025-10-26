@@ -1,6 +1,6 @@
 """Authentication routes."""
 
-from dishka.integrations.fastapi import FromDishka
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
 from pydantic import BaseModel
 
@@ -15,61 +15,114 @@ from talk.config import Settings
 from talk.domain.service import AuthService
 from talk.util.jwt import JWTError
 
-router = APIRouter(prefix="/auth", tags=["authentication"])
+router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
 
-class LoginCallbackResponse(BaseModel):
-    """Login callback response."""
+class InitiateLoginRequest(BaseModel):
+    """Initiate login request."""
+
+    account: str
+
+
+class InitiateLoginResponse(BaseModel):
+    """Initiate login response."""
+
+    authorization_url: str
+
+
+class LogoutResponse(BaseModel):
+    """Logout response."""
 
     success: bool
     message: str
 
 
-@router.get("/login")
+@router.post("/login", response_model=InitiateLoginResponse)
 async def initiate_login(
+    request: InitiateLoginRequest,
     auth_service: FromDishka[AuthService],
-) -> dict:
+) -> InitiateLoginResponse:
     """Initiate OAuth login flow.
 
-    Redirects user to Bluesky OAuth authorization page.
+    Accepts a Bluesky handle or DID and returns the authorization URL
+    to redirect the user to for authentication.
 
     Args:
+        request: Login request with account (handle or DID)
         auth_service: Authentication domain service from DI
 
     Returns:
         Authorization URL to redirect to
+
+    Raises:
+        HTTPException: If initiation fails
+
+    Example:
+        POST /auth/login
+        {
+            "account": "alice.bsky.social"
+        }
+
+        Response:
+        {
+            "authorization_url": "https://bsky.social/oauth/authorize?..."
+        }
     """
-    auth_url = auth_service.get_oauth_url()
-    return {"authorization_url": auth_url}
+    try:
+        auth_url = await auth_service.initiate_login(request.account)
+        return InitiateLoginResponse(authorization_url=auth_url)
+    except BlueskyAuthError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initiate login: {str(e)}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected error: {str(e)}",
+        )
 
 
-@router.get("/callback", response_model=LoginCallbackResponse)
+@router.get("/callback")
 async def login_callback(
     code: str,
+    state: str,
+    iss: str,
     response: Response,
     login_use_case: FromDishka[LoginUseCase],
     settings: FromDishka[Settings],
-) -> LoginCallbackResponse:
+):
     """Handle OAuth callback and complete login.
 
-    Exchanges authorization code for user info, creates/updates user,
-    and sets authentication cookie.
+    This endpoint receives the redirect from the OAuth provider after
+    the user authenticates. It completes the OAuth flow, creates/updates
+    the user, issues a JWT cookie, and redirects to the frontend.
 
     Args:
         code: Authorization code from OAuth provider
+        state: State parameter for session verification
+        iss: Issuer URL for verification
         response: FastAPI response object
         login_use_case: Login use case from DI
         settings: Application settings from DI
 
     Returns:
-        Login success response
+        HTTP 302 redirect to frontend
 
     Raises:
         HTTPException: If login fails
+
+    Example:
+        GET /auth/callback?code=abc123&state=xyz789&iss=https://bsky.social
+
+        Redirects to: https://frontend.example.com/
+        Sets cookie: auth_token (HTTP-only, Secure, SameSite=Lax)
     """
     try:
         # Execute login use case
-        login_response = await login_use_case.execute(LoginRequest(code=code))
+        login_response = await login_use_case.execute(
+            LoginRequest(code=code, state=state, iss=iss)
+        )
 
         # Set HTTP-only cookie with JWT token
         response.set_cookie(
@@ -81,20 +134,42 @@ async def login_callback(
             max_age=settings.auth.jwt_expiry_days * 24 * 60 * 60,  # seconds
         )
 
-        return LoginCallbackResponse(
-            success=True,
-            message=f"Successfully logged in as {login_response.handle}",
+        # Redirect to frontend
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(
+            url=settings.api.frontend_url,
+            status_code=status.HTTP_302_FOUND,
         )
 
+    except ValueError as e:
+        # Invite-only error
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(
+            url=f"{settings.api.frontend_url}/auth/error?error=no_invite&message={str(e)}",
+            status_code=status.HTTP_302_FOUND,
+        )
     except BlueskyAuthError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}",
+        # OAuth error
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(
+            url=f"{settings.api.frontend_url}/auth/error?error=auth_failed&message={str(e)}",
+            status_code=status.HTTP_302_FOUND,
+        )
+    except Exception as e:
+        # Unexpected error
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse(
+            url=f"{settings.api.frontend_url}/auth/error?error=unexpected&message={str(e)}",
+            status_code=status.HTTP_302_FOUND,
         )
 
 
-@router.post("/logout")
-async def logout(response: Response) -> dict:
+@router.post("/logout", response_model=LogoutResponse)
+async def logout(response: Response) -> LogoutResponse:
     """Logout user by clearing authentication cookie.
 
     Args:
@@ -104,7 +179,7 @@ async def logout(response: Response) -> dict:
         Logout success message
     """
     response.delete_cookie(key="auth_token")
-    return {"success": True, "message": "Successfully logged out"}
+    return LogoutResponse(success=True, message="Successfully logged out")
 
 
 @router.get("/me", response_model=GetCurrentUserResponse)

@@ -22,13 +22,8 @@ class AuthSettings(BaseModel):
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
 
-    # Bluesky OAuth
-    bluesky_client_id: str = ""
-    bluesky_client_secret: str = ""
-    bluesky_redirect_uri: str = "http://localhost:8000/auth/callback"
-
-    # AT Protocol
-    atproto_pds_url: str = "https://bsky.social"
+    # AT Protocol OAuth
+    default_pds_url: str = "https://bsky.social"  # Default PDS for handle resolution
 
 
 class InvitationSettings(BaseModel):
@@ -44,6 +39,7 @@ class APISettings(BaseModel):
     host: str = "localhost"
     port: int = 8000
     frontend_url: str = "http://localhost:3000"  # For post-login redirect
+    base_url: str = "http://localhost:8000"  # Base URL for OAuth client metadata (HTTPS in production)
 
 
 class Settings(BaseSettings):

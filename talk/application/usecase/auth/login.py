@@ -13,9 +13,14 @@ from talk.domain.value.types import BlueskyDID, Handle
 
 
 class LoginRequest(BaseModel):
-    """Login request."""
+    """Login request from OAuth callback.
+
+    These parameters come from the OAuth provider in the callback URL.
+    """
 
     code: str  # OAuth authorization code
+    state: str  # State parameter for session verification
+    iss: str  # Issuer URL for verification
 
 
 class LoginResponse(BaseModel):
@@ -53,21 +58,25 @@ class LoginUseCase:
         """Execute login flow.
 
         Steps:
-        1. Authenticate with OAuth code via auth service
+        1. Complete OAuth flow and get user info via auth service
         2. Create or update user in database
         3. Generate JWT token via JWT service
 
         Args:
-            request: Login request with OAuth code
+            request: Login request with OAuth callback parameters
 
         Returns:
             Login response with JWT token and user info
 
         Raises:
-            BlueskyAuthError: If OAuth fails
+            BlueskyAuthError: If OAuth completion fails
         """
-        # Authenticate user via OAuth
-        user_auth_info = await self.auth_service.authenticate_with_code(request.code)
+        # Complete OAuth flow and get user info
+        user_auth_info = await self.auth_service.complete_login(
+            code=request.code,
+            state=request.state,
+            iss=request.iss,
+        )
 
         # Create or update user
         did = BlueskyDID(root=user_auth_info.did)

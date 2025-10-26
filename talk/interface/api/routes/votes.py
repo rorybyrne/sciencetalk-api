@@ -1,6 +1,6 @@
 """Vote routes."""
 
-from dishka.integrations.fastapi import FromDishka
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 
 from talk.application.usecase.auth import GetCurrentUserUseCase
@@ -16,7 +16,7 @@ from talk.application.usecase.vote import (
 from talk.domain.value import VotableType
 from talk.util.jwt import JWTError
 
-router = APIRouter(tags=["votes"])
+router = APIRouter(tags=["votes"], route_class=DishkaRoute)
 
 
 @router.post("/posts/{post_id}/vote", response_model=UpvoteResponse)

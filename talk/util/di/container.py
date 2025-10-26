@@ -1,7 +1,7 @@
 """Dependency injection container."""
 
 from dishka import AsyncContainer, make_async_container
-from dishka.integrations.fastapi import setup_dishka
+from dishka.integrations.fastapi import FastapiProvider, setup_dishka
 
 from talk.util.di import PROVIDERS, get_provider
 
@@ -16,7 +16,8 @@ def create_container() -> AsyncContainer:
     """
     # Get provider instances - all are instantiated without arguments
     provider_instances = [get_provider(base, use_mock=False)() for base in PROVIDERS]
-    return make_async_container(*provider_instances)
+    # Include FastapiProvider for proper integration with FastAPI
+    return make_async_container(*provider_instances, FastapiProvider())
 
 
 def setup_di(app, container: AsyncContainer) -> None:

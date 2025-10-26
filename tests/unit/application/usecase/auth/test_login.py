@@ -43,9 +43,13 @@ class TestLoginUseCase:
         )
 
         code = "oauth_code_123"
+        state = "test_state_123"
+        iss = "https://bsky.social"
 
         # Act
-        response = await login_use_case.execute(LoginRequest(code=code))
+        response = await login_use_case.execute(
+            LoginRequest(code=code, state=state, iss=iss)
+        )
 
         # Assert
         # Verify user was created (MockBlueskyAuthClient returns mock data)
@@ -99,9 +103,13 @@ class TestLoginUseCase:
         await user_repo.save(existing_user)
 
         code = "oauth_code_456"
+        state = "test_state_456"
+        iss = "https://bsky.social"
 
         # Act
-        response = await login_use_case.execute(LoginRequest(code=code))
+        response = await login_use_case.execute(
+            LoginRequest(code=code, state=state, iss=iss)
+        )
 
         # Assert
         saved_user = await user_repo.find_by_bluesky_did(
@@ -144,10 +152,12 @@ class TestLoginUseCase:
         )
 
         code = "oauth_code_123"
+        state = "test_state_789"
+        iss = "https://bsky.social"
 
         # Act & Assert - Should raise error because no invite exists
         with pytest.raises(ValueError, match="No invite found.*invite-only"):
-            await login_use_case.execute(LoginRequest(code=code))
+            await login_use_case.execute(LoginRequest(code=code, state=state, iss=iss))
 
         # Verify user was NOT created
         saved_user = await user_repo.find_by_bluesky_did(
@@ -179,7 +189,9 @@ class TestLoginUseCase:
         )
 
         code = "oauth_code_123"
+        state = "test_state_999"
+        iss = "https://bsky.social"
 
         # Act & Assert - Should fail because invite is no longer pending
         with pytest.raises(ValueError, match="No invite found.*invite-only"):
-            await login_use_case.execute(LoginRequest(code=code))
+            await login_use_case.execute(LoginRequest(code=code, state=state, iss=iss))
