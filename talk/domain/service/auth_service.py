@@ -7,7 +7,11 @@ from .base import Service
 
 
 class AuthService(Service):
-    """Domain service for authentication operations."""
+    """Domain service for authentication operations.
+
+    Wraps the AT Protocol OAuth client to provide domain-level
+    authentication operations.
+    """
 
     def __init__(self, bluesky_client: BlueskyAuthClient) -> None:
         """Initialize auth service.
@@ -17,28 +21,35 @@ class AuthService(Service):
         """
         self.bluesky_client = bluesky_client
 
-    def get_oauth_url(self) -> str:
-        """Get OAuth authorization URL.
-
-        Returns:
-            Authorization URL for user to visit
-        """
-        return self.bluesky_client.get_authorization_url()
-
-    async def authenticate_with_code(self, code: str) -> UserAuthInfo:
-        """Authenticate user with OAuth code.
+    async def initiate_login(self, account: str) -> str:
+        """Initiate OAuth login flow.
 
         Args:
-            code: OAuth authorization code
+            account: Bluesky handle (e.g., "alice.bsky.social") or DID
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails
+        """
+        return await self.bluesky_client.initiate_authorization(account)
+
+    async def complete_login(self, code: str, state: str, iss: str) -> UserAuthInfo:
+        """Complete OAuth login flow.
+
+        Args:
+            code: Authorization code from OAuth callback
+            state: State parameter for session verification
+            iss: Issuer parameter for verification
 
         Returns:
             User authentication information
 
         Raises:
-            BlueskyAuthError: If authentication fails
+            BlueskyAuthError: If completion fails
         """
-        access_token = await self.bluesky_client.exchange_code_for_token(code)
-        user_info = await self.bluesky_client.get_user_info(access_token)
+        user_info = await self.bluesky_client.complete_authorization(code, state, iss)
 
         return UserAuthInfo(
             did=user_info.did,

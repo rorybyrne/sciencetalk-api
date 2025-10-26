@@ -1,6 +1,6 @@
 """Post routes."""
 
-from dishka.integrations.fastapi import FromDishka
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ from talk.domain.repository.post import PostSortOrder
 from talk.domain.value import PostType
 from talk.util.jwt import JWTError
 
-router = APIRouter(prefix="/posts", tags=["posts"])
+router = APIRouter(prefix="/posts", tags=["posts"], route_class=DishkaRoute)
 
 
 class CreatePostAPIRequest(BaseModel):

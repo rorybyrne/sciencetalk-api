@@ -1,17 +1,42 @@
 """FastAPI application."""
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from talk.interface.api.routes import auth, comments, health, invites, posts, votes
+from talk.config import Settings
+from talk.interface.api.routes import (
+    auth,
+    comments,
+    health,
+    invites,
+    oauth_metadata,
+    posts,
+    votes,
+)
 from talk.util.di.container import create_container, setup_di
 
 
 def create_app() -> FastAPI:
     """Create FastAPI application."""
+    settings = Settings()
+
     app_instance = FastAPI(
         title="Science Talk API",
         description="Backend API for Science Talk - a forum for sharing scientific results, methods, tools, and discussions",
         version="0.1.0",
+    )
+
+    # Setup CORS middleware
+    app_instance.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            settings.api.frontend_url,  # Frontend (talk.amacrin.com)
+            "http://localhost:3000",  # Local development
+            "http://localhost:5173",  # Vite default
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Setup dependency injection
@@ -21,6 +46,9 @@ def create_app() -> FastAPI:
 
     # Register routes
     app_instance.include_router(health.router)
+    app_instance.include_router(
+        oauth_metadata.router
+    )  # OAuth client metadata (no prefix)
     app_instance.include_router(auth.router)
     app_instance.include_router(posts.router)
     app_instance.include_router(comments.router)
@@ -28,7 +56,6 @@ def create_app() -> FastAPI:
     app_instance.include_router(invites.router)
 
     # TODO: Add error handlers
-    # TODO: Add CORS middleware
 
     return app_instance
 

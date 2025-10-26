@@ -1,8 +1,22 @@
 """Bluesky OAuth authentication adapter."""
 
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
+import httpx
 from pydantic import BaseModel
+
+from talk.adapter.bluesky.dpop import DPoPKeyPair, create_dpop_proof
+from talk.adapter.bluesky.identity import (
+    get_pds_endpoint,
+    resolve_did_document,
+    resolve_handle_to_did,
+)
+from talk.adapter.bluesky.metadata import discover_auth_server
+from talk.adapter.bluesky.pkce import generate_pkce_pair
+from talk.adapter.bluesky.session import InMemorySessionStore, OAuthSession
+from talk.domain.value.types import BlueskyDID
 
 
 class BlueskyUserInfo(BaseModel):
@@ -17,39 +31,35 @@ class BlueskyUserInfo(BaseModel):
 class BlueskyAuthClient(Protocol):
     """Protocol for Bluesky authentication client."""
 
-    def get_authorization_url(self) -> str:
-        """Get the OAuth authorization URL to redirect users to.
+    async def initiate_authorization(self, account_identifier: str) -> str:
+        """Initiate OAuth authorization flow.
+
+        Args:
+            account_identifier: Bluesky handle or DID
 
         Returns:
-            Authorization URL
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails
         """
         ...
 
-    async def exchange_code_for_token(self, code: str) -> str:
-        """Exchange authorization code for access token.
+    async def complete_authorization(
+        self, code: str, state: str, iss: str
+    ) -> BlueskyUserInfo:
+        """Complete OAuth authorization flow.
 
         Args:
-            code: Authorization code from OAuth callback
+            code: Authorization code from callback
+            state: State parameter from callback
+            iss: Issuer parameter from callback
 
         Returns:
-            Access token
+            User information extracted from Bluesky
 
         Raises:
-            BlueskyAuthError: If token exchange fails
-        """
-        ...
-
-    async def get_user_info(self, access_token: str) -> BlueskyUserInfo:
-        """Get user information using access token.
-
-        Args:
-            access_token: Access token from OAuth
-
-        Returns:
-            User information (DID, handle, display name, avatar)
-
-        Raises:
-            BlueskyAuthError: If fetching user info fails
+            BlueskyAuthError: If completion fails
         """
         ...
 
@@ -60,24 +70,398 @@ class BlueskyAuthError(Exception):
     pass
 
 
-# TODO: Implement real Bluesky OAuth client
-# For now, we'll create a mock implementation for development
+class ATProtocolOAuthClient:
+    """Real AT Protocol OAuth client implementation.
+
+    Implements the full OAuth flow with PKCE, DPoP, and PAR as required
+    by AT Protocol specification.
+    """
+
+    def __init__(
+        self,
+        client_id: str,
+        redirect_uri: str,
+        session_store: InMemorySessionStore | None = None,
+    ):
+        """Initialize AT Protocol OAuth client.
+
+        Args:
+            client_id: OAuth client ID (metadata URL)
+            redirect_uri: OAuth callback URL
+            session_store: Session store for OAuth state (creates new if None)
+        """
+        self._client_id = client_id
+        self._redirect_uri = redirect_uri
+        self._session_store = session_store or InMemorySessionStore()
+
+    async def initiate_authorization(self, account_identifier: str) -> str:
+        """Initiate OAuth authorization flow.
+
+        This method:
+        1. Resolves handle to DID and PDS endpoint
+        2. Discovers authorization server metadata
+        3. Generates PKCE and DPoP credentials
+        4. Makes Pushed Authorization Request (PAR)
+        5. Creates temporary session
+        6. Returns authorization URL
+
+        Args:
+            account_identifier: Bluesky handle (e.g., "alice.bsky.social") or DID
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails at any step
+        """
+        try:
+            # Step 1: Resolve account to DID
+            if account_identifier.startswith("did:"):
+                did = BlueskyDID(account_identifier)
+            else:
+                did = await resolve_handle_to_did(account_identifier)
+
+            # Step 2: Resolve DID to PDS endpoint
+            did_document = await resolve_did_document(did)
+            pds_url = get_pds_endpoint(did_document)
+
+            # Step 3: Discover authorization server metadata
+            auth_metadata = await discover_auth_server(pds_url)
+
+            # Step 4: Generate PKCE pair and DPoP keypair
+            pkce_verifier, pkce_challenge = generate_pkce_pair()
+            dpop_keypair = DPoPKeyPair()
+
+            # Step 5: Generate random state parameter
+            state = secrets.token_urlsafe(32)
+
+            # Step 6: Make Pushed Authorization Request
+            request_uri = await self._make_par_request(
+                par_endpoint=auth_metadata.pushed_authorization_request_endpoint,
+                pkce_challenge=pkce_challenge,
+                dpop_keypair=dpop_keypair,
+                login_hint=str(did),
+                state=state,
+            )
+
+            # Step 7: Create and save OAuth session
+            session = OAuthSession(
+                state=state,
+                pkce_verifier=pkce_verifier,
+                pkce_challenge=pkce_challenge,
+                dpop_keypair=dpop_keypair,
+                account_did=str(did),
+                auth_server_issuer=auth_metadata.issuer,
+                created_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+            )
+            await self._session_store.save(state, session)
+
+            # Step 8: Build authorization URL
+            auth_url = (
+                f"{auth_metadata.authorization_endpoint}"
+                f"?client_id={self._client_id}"
+                f"&request_uri={request_uri}"
+            )
+
+            return auth_url
+
+        except BlueskyAuthError:
+            raise
+        except Exception as e:
+            raise BlueskyAuthError(f"Failed to initiate authorization: {e}") from e
+
+    async def complete_authorization(
+        self, code: str, state: str, iss: str
+    ) -> BlueskyUserInfo:
+        """Complete OAuth authorization flow.
+
+        This method:
+        1. Retrieves OAuth session by state
+        2. Verifies issuer matches expected
+        3. Exchanges code for access token (with DPoP)
+        4. Fetches user profile (with DPoP + ath)
+        5. Verifies DID matches expected
+        6. Deletes session and discards tokens
+        7. Returns user info
+
+        Args:
+            code: Authorization code from OAuth callback
+            state: State parameter for session lookup
+            iss: Issuer URL to verify
+
+        Returns:
+            User information (DID, handle, display name, avatar)
+
+        Raises:
+            BlueskyAuthError: If completion fails or verification fails
+        """
+        try:
+            # Step 1: Retrieve OAuth session
+            session = await self._session_store.get(state)
+            if not session:
+                raise BlueskyAuthError("Invalid or expired OAuth session")
+
+            # Step 2: Verify issuer
+            if iss != session.auth_server_issuer:
+                raise BlueskyAuthError(
+                    f"Issuer mismatch: expected {session.auth_server_issuer}, got {iss}"
+                )
+
+            # Step 3: Discover auth server metadata (for token endpoint)
+            auth_metadata = await discover_auth_server(iss)
+
+            # Step 4: Exchange code for access token
+            access_token = await self._exchange_code_for_token(
+                token_endpoint=auth_metadata.token_endpoint,
+                code=code,
+                session=session,
+            )
+
+            if not session.account_did:
+                raise BlueskyAuthError("Missing account DID in session")
+
+            # Step 5: Resolve DID to PDS endpoint for profile fetch
+            did = BlueskyDID(session.account_did)
+            did_document = await resolve_did_document(did)
+            pds_url = get_pds_endpoint(did_document)
+
+            # Step 6: Fetch user profile
+            user_info = await self._get_user_profile(
+                pds_url=pds_url,
+                access_token=access_token,
+                dpop_keypair=session.dpop_keypair,
+                pds_nonce=session.pds_nonce,
+            )
+
+            # Step 7: CRITICAL - Verify DID matches expected account
+            if user_info.did != session.account_did:
+                raise BlueskyAuthError(
+                    f"DID mismatch: expected {session.account_did}, got {user_info.did}"
+                )
+
+            # Step 8: Clean up session (tokens discarded automatically)
+            await self._session_store.delete(state)
+
+            return user_info
+
+        except BlueskyAuthError:
+            raise
+        except Exception as e:
+            raise BlueskyAuthError(f"Failed to complete authorization: {e}") from e
+
+    async def _make_par_request(
+        self,
+        par_endpoint: str,
+        pkce_challenge: str,
+        dpop_keypair: DPoPKeyPair,
+        login_hint: str,
+        state: str,
+        nonce: str | None = None,
+    ) -> str:
+        """Make Pushed Authorization Request (PAR).
+
+        Args:
+            par_endpoint: PAR endpoint URL
+            pkce_challenge: PKCE code challenge
+            dpop_keypair: DPoP keypair for proof
+            login_hint: DID to hint to auth server
+            state: State parameter
+            nonce: Server nonce (for retry)
+
+        Returns:
+            request_uri token for authorization URL
+
+        Raises:
+            BlueskyAuthError: If PAR request fails
+        """
+        # Create DPoP proof for PAR request
+        dpop_proof = create_dpop_proof(
+            http_method="POST",
+            http_url=par_endpoint,
+            keypair=dpop_keypair,
+            nonce=nonce,
+        )
+
+        # Prepare PAR request
+        headers = {
+            "DPoP": dpop_proof,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        data = {
+            "client_id": self._client_id,
+            "response_type": "code",
+            "code_challenge": pkce_challenge,
+            "code_challenge_method": "S256",
+            "redirect_uri": self._redirect_uri,
+            "scope": "atproto",
+            "state": state,
+            "login_hint": login_hint,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(par_endpoint, headers=headers, data=data)
+
+            # Handle DPoP nonce requirement
+            if response.status_code == 401:
+                error_data = response.json()
+                if error_data.get("error") == "use_dpop_nonce":
+                    # Retry with nonce from response
+                    new_nonce = response.headers.get("DPoP-Nonce")
+                    if not new_nonce:
+                        raise BlueskyAuthError("Missing DPoP-Nonce in 401 response")
+                    return await self._make_par_request(
+                        par_endpoint=par_endpoint,
+                        pkce_challenge=pkce_challenge,
+                        dpop_keypair=dpop_keypair,
+                        login_hint=login_hint,
+                        state=state,
+                        nonce=new_nonce,
+                    )
+
+            response.raise_for_status()
+            result = response.json()
+
+            # Extract request_uri from response
+            request_uri = result.get("request_uri")
+            if not request_uri:
+                raise BlueskyAuthError("Missing request_uri in PAR response")
+
+            return request_uri
+
+    async def _exchange_code_for_token(
+        self,
+        token_endpoint: str,
+        code: str,
+        session: OAuthSession,
+    ) -> str:
+        """Exchange authorization code for access token.
+
+        Args:
+            token_endpoint: Token endpoint URL
+            code: Authorization code
+            session: OAuth session with PKCE and DPoP
+
+        Returns:
+            Access token
+
+        Raises:
+            BlueskyAuthError: If token exchange fails
+        """
+        # Create DPoP proof for token request
+        dpop_proof = create_dpop_proof(
+            http_method="POST",
+            http_url=token_endpoint,
+            keypair=session.dpop_keypair,
+            nonce=session.auth_server_nonce,
+        )
+
+        headers = {
+            "DPoP": dpop_proof,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": self._redirect_uri,
+            "client_id": self._client_id,
+            "code_verifier": session.pkce_verifier,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(token_endpoint, headers=headers, data=data)
+
+            # Handle DPoP nonce (update session but don't retry for token endpoint)
+            if "DPoP-Nonce" in response.headers:
+                session.auth_server_nonce = response.headers["DPoP-Nonce"]
+
+            response.raise_for_status()
+            result = response.json()
+
+            access_token = result.get("access_token")
+            if not access_token:
+                raise BlueskyAuthError("Missing access_token in token response")
+
+            # Extract sub (DID) for verification
+            sub = result.get("sub")
+            if sub and sub != session.account_did:
+                raise BlueskyAuthError(
+                    f"Token sub mismatch: expected {session.account_did}, got {sub}"
+                )
+
+            return access_token
+
+    async def _get_user_profile(
+        self,
+        pds_url: str,
+        access_token: str,
+        dpop_keypair: DPoPKeyPair,
+        pds_nonce: str | None,
+    ) -> BlueskyUserInfo:
+        """Fetch user profile from PDS.
+
+        Args:
+            pds_url: PDS endpoint URL
+            access_token: Access token from auth server
+            dpop_keypair: DPoP keypair for proof
+            pds_nonce: PDS nonce (if available)
+
+        Returns:
+            User information
+
+        Raises:
+            BlueskyAuthError: If profile fetch fails
+        """
+        profile_url = f"{pds_url}/xrpc/com.atproto.server.getSession"
+
+        # Create DPoP proof with ath (access token hash)
+        dpop_proof = create_dpop_proof(
+            http_method="GET",
+            http_url=profile_url,
+            keypair=dpop_keypair,
+            nonce=pds_nonce,
+            access_token=access_token,
+        )
+
+        headers = {
+            "DPoP": dpop_proof,
+            "Authorization": f"DPoP {access_token}",
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(profile_url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+
+            # Extract user info from response
+            return BlueskyUserInfo(
+                did=result.get("did", ""),
+                handle=result.get("handle", ""),
+                display_name=result.get("displayName"),
+                avatar_url=result.get("avatar"),
+            )
+
+
+# Mock implementation for testing
 class MockBlueskyAuthClient:
     """Mock Bluesky authentication client for development."""
 
-    def get_authorization_url(self) -> str:
+    async def initiate_authorization(self, account_identifier: str) -> str:
         """Get mock authorization URL."""
-        return "https://bsky.app/oauth/authorize?mock=true"
+        return (
+            f"https://bsky.app/oauth/authorize?mock=true&account={account_identifier}"
+        )
 
-    async def exchange_code_for_token(self, code: str) -> str:
-        """Exchange mock code for mock token."""
+    async def complete_authorization(
+        self, code: str, state: str, iss: str
+    ) -> BlueskyUserInfo:
+        """Complete mock authorization."""
+        _ = (state, iss)  # satisfy pyright
         if code == "invalid":
             raise BlueskyAuthError("Invalid authorization code")
-        return f"mock_token_{code}"
 
-    async def get_user_info(self, access_token: str) -> BlueskyUserInfo:
-        """Get mock user info."""
-        # Extract user from token for testing
         return BlueskyUserInfo(
             did="did:plc:mock123",
             handle="user.bsky.social",

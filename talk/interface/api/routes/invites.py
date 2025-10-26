@@ -1,6 +1,6 @@
 """Invite routes."""
 
-from dishka.integrations.fastapi import FromDishka
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel
 
@@ -12,7 +12,7 @@ from talk.application.usecase.invite.create_invites import (
 from talk.domain.service import JWTService
 from talk.util.jwt import JWTError
 
-router = APIRouter(prefix="/invites", tags=["invites"])
+router = APIRouter(prefix="/invites", tags=["invites"], route_class=DishkaRoute)
 
 
 class CreateInvitesAPIRequest(BaseModel):

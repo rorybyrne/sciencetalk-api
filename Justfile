@@ -1,5 +1,6 @@
-# Import local deployment commands
+# Import deployment commands
 mod local 'deployment/local/local.just'
+mod prod 'deployment/prod/prod.just'
 
 # Environment configuration
 LOCAL_ENV := "--env-file .env"

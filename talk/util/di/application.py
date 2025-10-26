@@ -38,6 +38,7 @@ class ProdApplicationProvider(ProviderBase):
         jwt_service: JWTService,
         user_repository: UserRepository,
         invite_service: InviteService,
+        settings: Settings,
     ) -> LoginUseCase:
         """Provide login use case."""
         return LoginUseCase(
@@ -45,6 +46,7 @@ class ProdApplicationProvider(ProviderBase):
             jwt_service=jwt_service,
             user_repository=user_repository,
             invite_service=invite_service,
+            settings=settings,
         )
 
     @provide(scope=Scope.REQUEST)

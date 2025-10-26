@@ -49,6 +49,14 @@ test-integration:
 test-integration-debug:
     docker compose -f docker-compose.yml --profile test up --build test
 
+# Run e2e tests in Docker (requires API to be running)
+test-e2e:
+    docker compose -f docker-compose.yml --profile test-e2e up --build --abort-on-container-exit test-e2e
+
+# Run e2e tests and keep containers running for debugging
+test-e2e-debug:
+    docker compose -f docker-compose.yml --profile test-e2e up --build test-e2e
+
 # View test logs
 test-logs:
     docker compose -f docker-compose.yml logs test

@@ -1,0 +1,62 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run linter
+        run: uv run ruff check .
+
+      - name: Run type checker
+        run: uv run pyright
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit -v
+        env:
+          DATABASE__URL: "sqlite+aiosqlite:///:memory:"
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          cd deployment/local
+          docker compose --profile test up --build --abort-on-container-exit test
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run e2e tests
+        run: |
+          cd deployment/local
+          docker compose --profile test-e2e up --build --abort-on-container-exit test-e2e

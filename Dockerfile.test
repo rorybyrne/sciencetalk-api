@@ -31,5 +31,5 @@ RUN uv sync --frozen --all-groups
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
 
-# Default command runs tests
-CMD ["/app/.venv/bin/pytest", "tests/integration", "-v"]
+# Default command runs integration tests via script
+CMD ["/app/scripts/run-integration-tests.sh", "tests/integration"]
