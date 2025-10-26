@@ -70,17 +70,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Load environment variables from .env secret
+      - name: Save .env file
         run: |
-          # Write ENV_FILE secret to .env
-          echo "${{ secrets.ENV_FILE }}" > .env
+          # Write secret to file
+          printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
 
-          # Export all variables to GITHUB_ENV for subsequent steps
-          cat .env >> $GITHUB_ENV
-
-          # Extract key values for later use
-          echo "SERVICE_NAME=talk" >> $GITHUB_ENV
-          echo "AWS_REGION=$(grep AWS_REGION .env | cut -d= -f2 | tr -d '\"' | tr -d "'" | xargs)" >> $GITHUB_ENV
+          # Extract AWS region for credentials step
+          AWS_REGION=$(grep AWS_REGION .env | cut -d= -f2 | tr -d '"' | tr -d "'" | xargs)
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -97,15 +94,15 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker build -t talk:${{ github.sha }} .
 
       - name: Push to Lightsail
         id: push
         run: |
           aws lightsail push-container-image \
-            --service-name ${{ env.SERVICE_NAME }} \
+            --service-name talk \
             --label ${{ github.sha }} \
-            --image ${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --image talk:${{ github.sha }} \
             | tee push-output.txt
 
           # Extract full image name from output
@@ -131,7 +128,7 @@ jobs:
           ENV_JSON=$(cat /tmp/env.json)
 
           aws lightsail create-container-service-deployment \
-            --service-name ${{ env.SERVICE_NAME }} \
+            --service-name talk \
             --containers "{
               \"app\": {
                 \"image\": \"${{ steps.push.outputs.image_name }}\",
@@ -161,7 +158,7 @@ jobs:
 
           for i in {1..10}; do
             STATE=$(aws lightsail get-container-service-deployments \
-              --service-name ${{ env.SERVICE_NAME }} \
+              --service-name talk \
               --query 'deployments[0].state' \
               --output text)
 
@@ -185,7 +182,7 @@ jobs:
         run: |
           # Get container service URL
           URL=$(aws lightsail get-container-services \
-            --service-name ${{ env.SERVICE_NAME }} \
+            --service-name talk \
             --query 'containerServices[0].url' \
             --output text)
 
