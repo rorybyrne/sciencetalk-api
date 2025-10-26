@@ -1,12 +1,19 @@
 #!/bin/bash
-# Script to run integration tests with database migrations
+# Script to run tests with database migrations
 # This ensures the database is properly set up before running tests
+# Usage: ./run-integration-tests.sh [test_path]
+# Example: ./run-integration-tests.sh tests/integration
+# Example: ./run-integration-tests.sh tests/e2e
 
 set -e  # Exit on error
 
+# Get test path from argument or default to integration tests
+TEST_PATH="${1:-tests/integration}"
+
 echo "===================="
-echo "Integration Test Runner"
+echo "Test Runner"
 echo "===================="
+echo "Test path: $TEST_PATH"
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for PostgreSQL to be ready..."
@@ -23,9 +30,9 @@ alembic upgrade head
 
 echo "Migrations complete!"
 
-# Run integration tests
-echo "Running integration tests..."
-pytest tests/integration -v --tb=short
+# Run tests
+echo "Running tests from $TEST_PATH..."
+pytest "$TEST_PATH" -v --tb=short
 
 echo "===================="
 echo "Tests complete!"
