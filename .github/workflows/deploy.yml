@@ -75,12 +75,7 @@ jobs:
           # Write ENV_FILE secret to .env
           echo "${{ secrets.ENV_FILE }}" > .env
 
-          # Source it to make variables available
-          set -a
-          source .env
-          set +a
-
-          # Export to GITHUB_ENV for subsequent steps
+          # Export all variables to GITHUB_ENV for subsequent steps
           cat .env >> $GITHUB_ENV
 
           # Extract key values for later use
