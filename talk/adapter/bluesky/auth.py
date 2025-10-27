@@ -389,7 +389,7 @@ class ATProtocolOAuthClient:
         )
 
         headers = {
-            "DPoP": dpop_proof,
+            "DPoP": dpop_proof.serialize(),
             "Content-Type": "application/x-www-form-urlencoded",
         }
 
@@ -457,7 +457,7 @@ class ATProtocolOAuthClient:
         )
 
         headers = {
-            "DPoP": dpop_proof,
+            "DPoP": dpop_proof.serialize(),
             "Authorization": f"DPoP {access_token}",
         }
 
