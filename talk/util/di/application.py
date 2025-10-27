@@ -17,7 +17,7 @@ from talk.application.usecase.post import (
 )
 from talk.application.usecase.user import GetUserProfileUseCase
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
-from talk.domain.repository import PostRepository, UserRepository
+from talk.domain.repository import PostRepository, UserRepository, VoteRepository
 from talk.domain.service import (
     AuthService,
     CommentService,
@@ -74,16 +74,22 @@ class ProdApplicationProvider(ProviderBase):
         return CreatePostUseCase(post_repository=post_repository)
 
     @provide(scope=Scope.REQUEST)
-    def get_get_post_use_case(self, post_repository: PostRepository) -> GetPostUseCase:
+    def get_get_post_use_case(
+        self, post_repository: PostRepository, vote_repository: VoteRepository
+    ) -> GetPostUseCase:
         """Provide get post use case."""
-        return GetPostUseCase(post_repository=post_repository)
+        return GetPostUseCase(
+            post_repository=post_repository, vote_repository=vote_repository
+        )
 
     @provide(scope=Scope.REQUEST)
     def get_list_posts_use_case(
-        self, post_repository: PostRepository
+        self, post_repository: PostRepository, vote_repository: VoteRepository
     ) -> ListPostsUseCase:
         """Provide list posts use case."""
-        return ListPostsUseCase(post_repository=post_repository)
+        return ListPostsUseCase(
+            post_repository=post_repository, vote_repository=vote_repository
+        )
 
     # Comment use cases
     @provide(scope=Scope.REQUEST)

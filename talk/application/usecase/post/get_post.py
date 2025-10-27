@@ -6,8 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from talk.domain.repository import PostRepository
-from talk.domain.value import PostId, PostType
+from talk.domain.repository import PostRepository, VoteRepository
+from talk.domain.value import PostId, PostType, UserId, VotableType
 from talk.domain.value.types import Handle
 
 
@@ -15,6 +15,7 @@ class GetPostRequest(BaseModel):
     """Get post request."""
 
     post_id: str  # UUID string
+    user_id: str | None = None  # Current user ID (if authenticated)
 
 
 class GetPostResponse(BaseModel):
@@ -31,24 +32,29 @@ class GetPostResponse(BaseModel):
     comment_count: int
     created_at: datetime
     updated_at: datetime
+    has_voted: bool
 
 
 class GetPostUseCase:
     """Use case for retrieving a post by ID."""
 
-    def __init__(self, post_repository: PostRepository) -> None:
+    def __init__(
+        self, post_repository: PostRepository, vote_repository: VoteRepository
+    ) -> None:
         """Initialize get post use case.
 
         Args:
             post_repository: Post repository
+            vote_repository: Vote repository
         """
         self.post_repository = post_repository
+        self.vote_repository = vote_repository
 
     async def execute(self, request: GetPostRequest) -> Optional[GetPostResponse]:
         """Execute get post flow.
 
         Args:
-            request: Get post request with post ID
+            request: Get post request with post ID and optional user ID
 
         Returns:
             Post details if found, None otherwise
@@ -63,6 +69,16 @@ class GetPostUseCase:
         if post.deleted_at is not None:
             return None
 
+        # Check if user has voted (if authenticated)
+        has_voted = False
+        if request.user_id:
+            vote = await self.vote_repository.find_by_user_and_votable(
+                user_id=UserId(UUID(request.user_id)),
+                votable_type=VotableType.POST,
+                votable_id=post.id,
+            )
+            has_voted = vote is not None
+
         return GetPostResponse(
             post_id=str(post.id),
             title=post.title,
@@ -75,4 +91,5 @@ class GetPostUseCase:
             comment_count=post.comment_count,
             created_at=post.created_at,
             updated_at=post.updated_at,
+            has_voted=has_voted,
         )

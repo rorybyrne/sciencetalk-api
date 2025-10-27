@@ -123,12 +123,16 @@ async def create_post(
 async def get_post(
     post_id: UUID,
     get_post_use_case: FromDishka[GetPostUseCase],
+    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    auth_token: str | None = Cookie(default=None),
 ) -> GetPostResponse:
     """Get a post by ID.
 
     Args:
         post_id: Post UUID
         get_post_use_case: Get post use case from DI
+        get_current_user_use_case: Get current user use case from DI
+        auth_token: JWT token from cookie (optional)
 
     Returns:
         Post details
@@ -138,8 +142,23 @@ async def get_post(
     """
     logger.info(f"Fetching post: post_id={post_id}")
 
+    # Get current user ID if authenticated
+    user_id = None
+    if auth_token:
+        try:
+            user = await get_current_user_use_case.execute(
+                GetCurrentUserRequest(token=auth_token)
+            )
+            if user:
+                user_id = user.user_id
+        except JWTError:
+            # Invalid token, treat as unauthenticated
+            pass
+
     try:
-        post = await get_post_use_case.execute(GetPostRequest(post_id=str(post_id)))
+        post = await get_post_use_case.execute(
+            GetPostRequest(post_id=str(post_id), user_id=user_id)
+        )
 
         if not post:
             logger.warning(f"Post not found: post_id={post_id}")
@@ -164,19 +183,23 @@ async def get_post(
 @router.get("/", response_model=ListPostsResponse)
 async def list_posts(
     list_posts_use_case: FromDishka[ListPostsUseCase],
+    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
     sort: PostSortOrder = PostSortOrder.RECENT,
     post_type: PostType | None = None,
     limit: int = 30,
     offset: int = 0,
+    auth_token: str | None = Cookie(default=None),
 ) -> ListPostsResponse:
     """List posts with filtering and pagination.
 
     Args:
         list_posts_use_case: List posts use case from DI
+        get_current_user_use_case: Get current user use case from DI
         sort: Sort order (recent or active)
         post_type: Filter by post type (optional)
         limit: Maximum number of posts to return (1-100)
         offset: Number of posts to skip
+        auth_token: JWT token from cookie (optional)
 
     Returns:
         List of posts
@@ -185,6 +208,19 @@ async def list_posts(
         f"Listing posts: sort={sort}, post_type={post_type}, "
         f"limit={limit}, offset={offset}"
     )
+
+    # Get current user ID if authenticated
+    user_id = None
+    if auth_token:
+        try:
+            user = await get_current_user_use_case.execute(
+                GetCurrentUserRequest(token=auth_token)
+            )
+            if user:
+                user_id = user.user_id
+        except JWTError:
+            # Invalid token, treat as unauthenticated
+            pass
 
     # Validate pagination
     if limit < 1 or limit > 100:
@@ -203,6 +239,7 @@ async def list_posts(
         post_type=post_type,
         limit=limit,
         offset=offset,
+        user_id=user_id,
     )
 
     try:
