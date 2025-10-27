@@ -254,11 +254,12 @@ class ATProtocolOAuthClient:
             pds_url = get_pds_endpoint(did_document)
 
             # Step 6: Fetch user profile
+            # Try using auth server nonce first - it may work with PDS too
             user_info = await self._get_user_profile(
                 pds_url=pds_url,
                 access_token=access_token,
                 dpop_keypair=session.dpop_keypair,
-                pds_nonce=session.pds_nonce,
+                pds_nonce=session.auth_server_nonce,  # Try auth server nonce first
             )
 
             # Step 7: CRITICAL - Verify DID matches expected account
@@ -519,6 +520,7 @@ class ATProtocolOAuthClient:
         access_token: str,
         dpop_keypair: DPoPKeyPair,
         pds_nonce: str | None,
+        retry_count: int = 0,
     ) -> BlueskyUserInfo:
         """Fetch user profile from PDS.
 
@@ -526,7 +528,8 @@ class ATProtocolOAuthClient:
             pds_url: PDS endpoint URL
             access_token: Access token from auth server
             dpop_keypair: DPoP keypair for proof
-            pds_nonce: PDS nonce (if available)
+            pds_nonce: DPoP nonce (initially from auth server, then PDS-specific if needed)
+            retry_count: Number of retries attempted (for nonce handling)
 
         Returns:
             User information
@@ -534,6 +537,10 @@ class ATProtocolOAuthClient:
         Raises:
             BlueskyAuthError: If profile fetch fails
         """
+        logger.debug(
+            f"Fetching user profile from PDS (nonce={'present' if pds_nonce else 'none'}, retry={retry_count})"
+        )
+
         profile_url = f"{pds_url}/xrpc/com.atproto.server.getSession"
 
         # Create DPoP proof with ath (access token hash)
@@ -553,6 +560,40 @@ class ATProtocolOAuthClient:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(profile_url, headers=headers)
 
+            logger.debug(f"Profile fetch response status: {response.status_code}")
+
+            # Handle DPoP nonce requirement (can be 400 or 401)
+            if response.status_code in [400, 401] and retry_count == 0:
+                try:
+                    error_data = response.json()
+                    if error_data.get("error") == "use_dpop_nonce":
+                        # Get nonce from response header
+                        new_nonce = response.headers.get("DPoP-Nonce")
+                        if not new_nonce:
+                            logger.error(
+                                f"PDS requires nonce but didn't provide DPoP-Nonce header. "
+                                f"Status: {response.status_code}, Headers: {dict(response.headers)}"
+                            )
+                            raise BlueskyAuthError(
+                                f"Missing DPoP-Nonce in {response.status_code} response from PDS"
+                            )
+
+                        logger.info(
+                            "Auth server nonce rejected by PDS, retrying with PDS-specific nonce"
+                        )
+
+                        # Retry once with nonce
+                        return await self._get_user_profile(
+                            pds_url=pds_url,
+                            access_token=access_token,
+                            dpop_keypair=dpop_keypair,
+                            pds_nonce=new_nonce,
+                            retry_count=retry_count + 1,
+                        )
+                except ValueError:
+                    # Response isn't JSON, fall through to error handling below
+                    pass
+
             # Log error details before raising
             if response.status_code >= 400:
                 try:
@@ -567,8 +608,7 @@ class ATProtocolOAuthClient:
 
             response.raise_for_status()
 
-            # Note: DPoP-Nonce validation is optional for PDS requests
-            # The PDS may or may not return a nonce depending on its configuration
+            # Note: DPoP-Nonce is now mandatory per spec, but we handle it via retry above
             if "DPoP-Nonce" in response.headers:
                 logger.debug("PDS returned DPoP-Nonce header")
 
