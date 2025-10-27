@@ -1,6 +1,6 @@
 """PostgreSQL implementation of Comment repository."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from talk.domain.model import Comment
 from talk.domain.repository import CommentRepository
 from talk.domain.value import CommentId, PostId, UserId
-from talk.persistence.mappers import row_to_comment
+from talk.persistence.mappers import comment_to_dict, row_to_comment
 from talk.persistence.tables import comments_table
 
 
@@ -22,6 +22,23 @@ class PostgresCommentRepository(CommentRepository):
             session: SQLAlchemy async session
         """
         self.session = session
+
+    def _comment_to_db_dict(
+        self, comment: Comment, exclude: Optional[Set[str]] = None
+    ) -> Dict[str, Any]:
+        """Convert comment to database dict with optional field exclusion.
+
+        Args:
+            comment: Comment domain model
+            exclude: Set of field names to exclude
+
+        Returns:
+            Dict suitable for database insertion/update
+        """
+        comment_dict = comment_to_dict(comment)
+        if exclude:
+            return {k: v for k, v in comment_dict.items() if k not in exclude}
+        return comment_dict
 
     async def find_by_id(self, comment_id: CommentId) -> Optional[Comment]:
         """Find a comment by ID."""
@@ -87,11 +104,9 @@ class PostgresCommentRepository(CommentRepository):
         """Save a comment (create or update)."""
         existing = await self.find_by_id(comment.id)
 
-        # Exclude path and depth - these are managed by database triggers
-        comment_dict = comment.model_dump(exclude={"path", "depth"})
-
         if existing:
-            # Update
+            # Update - include all fields
+            comment_dict = self._comment_to_db_dict(comment)
             stmt = (
                 comments_table.update()
                 .where(comments_table.c.id == comment.id)
@@ -99,7 +114,8 @@ class PostgresCommentRepository(CommentRepository):
             )
             await self.session.execute(stmt)
         else:
-            # Insert
+            # Insert - exclude path and depth (set by database trigger)
+            comment_dict = self._comment_to_db_dict(comment, exclude={"path", "depth"})
             stmt = comments_table.insert().values(**comment_dict)
             await self.session.execute(stmt)
 
