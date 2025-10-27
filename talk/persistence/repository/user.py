@@ -64,7 +64,7 @@ class PostgresUserRepository(UserRepository):
             stmt = users_table.insert().values(**user_dict)
             await self.session.execute(stmt)
 
-        await self.session.commit()
+        await self.session.flush()
         return user
 
     async def exists_by_bluesky_did(self, bluesky_did: BlueskyDID) -> bool:

@@ -53,9 +53,18 @@ class ProdPersistenceProvider(PersistenceProvider):
     async def get_session(
         self, session_factory: async_sessionmaker[AsyncSession]
     ) -> AsyncIterator[AsyncSession]:
-        """Provide database session for request scope."""
+        """Provide database session for request scope.
+
+        The session is automatically committed at the end of the request
+        if no exception occurred, or rolled back if an exception was raised.
+        """
         async with session_factory() as session:
-            yield session
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     @provide(scope=Scope.REQUEST)
     def get_user_repository(self, session: AsyncSession) -> UserRepository:

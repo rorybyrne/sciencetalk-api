@@ -1,5 +1,8 @@
 """Post routes."""
 
+import logging
+from uuid import UUID
+
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel, Field
@@ -20,6 +23,8 @@ from talk.application.usecase.post import (
 from talk.domain.repository.post import PostSortOrder
 from talk.domain.value import PostType
 from talk.util.jwt import JWTError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/posts", tags=["posts"], route_class=DishkaRoute)
 
@@ -82,6 +87,11 @@ async def create_post(
 
     # Create post
     try:
+        logger.info(
+            f"Creating post: title='{request.title}', type={request.type}, "
+            f"author={user.handle}"
+        )
+
         use_case_request = CreatePostRequest(
             title=request.title,
             type=request.type,
@@ -90,17 +100,28 @@ async def create_post(
             url=request.url,
             text=request.text,
         )
-        return await create_post_use_case.execute(use_case_request)
+
+        result = await create_post_use_case.execute(use_case_request)
+        logger.info(f"Post created successfully: post_id={result.post_id}")
+        return result
+
     except ValueError as e:
+        logger.error(f"Post creation validation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error creating post: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create post",
         )
 
 
 @router.get("/{post_id}", response_model=GetPostResponse)
 async def get_post(
-    post_id: str,
+    post_id: UUID,
     get_post_use_case: FromDishka[GetPostUseCase],
 ) -> GetPostResponse:
     """Get a post by ID.
@@ -113,17 +134,31 @@ async def get_post(
         Post details
 
     Raises:
-        HTTPException: If post not found
+        HTTPException: If post not found or invalid UUID
     """
-    post = await get_post_use_case.execute(GetPostRequest(post_id=post_id))
+    logger.info(f"Fetching post: post_id={post_id}")
 
-    if not post:
+    try:
+        post = await get_post_use_case.execute(GetPostRequest(post_id=str(post_id)))
+
+        if not post:
+            logger.warning(f"Post not found: post_id={post_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found",
+            )
+
+        logger.debug(f"Post found: post_id={post_id}, title='{post.title}'")
+        return post
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching post {post_id}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Post not found",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch post",
         )
-
-    return post
 
 
 @router.get("/", response_model=ListPostsResponse)
@@ -146,6 +181,11 @@ async def list_posts(
     Returns:
         List of posts
     """
+    logger.info(
+        f"Listing posts: sort={sort}, post_type={post_type}, "
+        f"limit={limit}, offset={offset}"
+    )
+
     # Validate pagination
     if limit < 1 or limit > 100:
         raise HTTPException(
@@ -165,4 +205,18 @@ async def list_posts(
         offset=offset,
     )
 
-    return await list_posts_use_case.execute(request)
+    try:
+        result = await list_posts_use_case.execute(request)
+        has_more = (result.offset + len(result.posts)) < result.total
+        logger.info(
+            f"Listed posts: returned {len(result.posts)} posts, "
+            f"total={result.total}, offset={result.offset}, has_more={has_more}"
+        )
+        return result
+
+    except Exception as e:
+        logger.exception(f"Unexpected error listing posts: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list posts",
+        )

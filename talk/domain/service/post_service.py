@@ -1,5 +1,6 @@
 """Post domain service."""
 
+import logging
 from datetime import datetime
 
 from talk.domain.model.post import Post
@@ -7,6 +8,8 @@ from talk.domain.repository import PostRepository
 from talk.domain.value import PostId
 
 from .base import Service
+
+logger = logging.getLogger(__name__)
 
 
 class PostService(Service):
@@ -29,7 +32,15 @@ class PostService(Service):
         Returns:
             Post if found, None otherwise
         """
-        return await self.post_repository.find_by_id(post_id)
+        logger.debug(f"Looking up post in repository: post_id={post_id}")
+        post = await self.post_repository.find_by_id(post_id)
+
+        if post:
+            logger.info(f"Post found: post_id={post_id}, title='{post.title}'")
+        else:
+            logger.warning(f"Post not found in repository: post_id={post_id}")
+
+        return post
 
     async def increment_comment_count(self, post_id: PostId) -> Post:
         """Increment a post's comment count.

@@ -1,5 +1,6 @@
 """PostgreSQL implementation of Post repository."""
 
+import logging
 from typing import List, Optional
 
 from sqlalchemy import desc, select
@@ -10,6 +11,8 @@ from talk.domain.repository.post import PostRepository, PostSortOrder
 from talk.domain.value import PostId, PostType, UserId
 from talk.persistence.mappers import post_to_dict, row_to_post
 from talk.persistence.tables import posts_table
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresPostRepository(PostRepository):
@@ -25,9 +28,16 @@ class PostgresPostRepository(PostRepository):
 
     async def find_by_id(self, post_id: PostId) -> Optional[Post]:
         """Find a post by ID."""
+        logger.debug(f"DB query: SELECT post WHERE id={post_id}")
         stmt = select(posts_table).where(posts_table.c.id == post_id)
         result = await self.session.execute(stmt)
         row = result.fetchone()
+
+        if row:
+            logger.debug(f"DB result: Found post {post_id}")
+        else:
+            logger.warning(f"DB result: Post {post_id} not found in database")
+
         return row_to_post(row._asdict()) if row else None
 
     async def find_all(
@@ -39,6 +49,11 @@ class PostgresPostRepository(PostRepository):
         offset: int = 0,
     ) -> List[Post]:
         """Find posts with filtering and pagination."""
+        logger.debug(
+            f"DB query: SELECT posts WHERE type={post_type}, "
+            f"deleted={include_deleted}, sort={sort}, limit={limit}, offset={offset}"
+        )
+
         stmt = select(posts_table)
 
         # Filter by type
@@ -61,7 +76,10 @@ class PostgresPostRepository(PostRepository):
         stmt = stmt.limit(limit).offset(offset)
 
         result = await self.session.execute(stmt)
-        return [row_to_post(row._asdict()) for row in result.fetchall()]
+        posts = [row_to_post(row._asdict()) for row in result.fetchall()]
+
+        logger.info(f"DB result: Found {len(posts)} posts")
+        return posts
 
     async def find_by_author(
         self,
@@ -89,6 +107,7 @@ class PostgresPostRepository(PostRepository):
 
         if existing:
             # Update
+            logger.info(f"DB: Updating existing post {post.id}")
             stmt = (
                 posts_table.update()
                 .where(posts_table.c.id == post.id)
@@ -97,10 +116,18 @@ class PostgresPostRepository(PostRepository):
             await self.session.execute(stmt)
         else:
             # Insert
+            logger.info(
+                f"DB: Inserting new post {post.id} "
+                f"(title='{post.title}', type={post.type}, author={post.author_handle})"
+            )
             stmt = posts_table.insert().values(**post_dict)
             await self.session.execute(stmt)
 
         await self.session.flush()
+        logger.info(
+            f"DB: Post {post.id} flushed to DB successfully "
+            "(will be committed at end of request)"
+        )
         return post
 
     async def delete(self, post_id: PostId) -> None:
