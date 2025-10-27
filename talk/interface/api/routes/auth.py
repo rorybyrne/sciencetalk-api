@@ -125,12 +125,27 @@ async def login_callback(
         )
 
         # Set HTTP-only cookie with JWT token
+        # Production (cross-subdomain): talk.amacrin.com → api.talk.amacrin.com
+        #   - samesite="none" required for cross-site requests
+        #   - secure=True required when samesite="none"
+        #   - domain=".amacrin.com" to share across subdomains
+        # Development (same-origin): localhost:3000 → localhost:8000
+        #   - samesite="lax" for same-origin requests
+        #   - secure=False to allow HTTP
+        #   - domain=None (default to current host)
+        is_production = settings.environment == "production"
         response.set_cookie(
             key="auth_token",
             value=login_response.token,
             httponly=True,
-            secure=settings.environment == "production",  # HTTPS only in production
-            samesite="lax",
+            secure=is_production,  # HTTPS required in production
+            samesite="none"
+            if is_production
+            else "lax",  # "none" for cross-subdomain, "lax" for localhost
+            domain=".amacrin.com"
+            if is_production
+            else None,  # Share across subdomains in production only
+            path="/",
             max_age=settings.auth.jwt_expiry_days * 24 * 60 * 60,  # seconds
         )
 
@@ -169,16 +184,26 @@ async def login_callback(
 
 
 @router.post("/logout", response_model=LogoutResponse)
-async def logout(response: Response) -> LogoutResponse:
+async def logout(
+    response: Response,
+    settings: FromDishka[Settings],
+) -> LogoutResponse:
     """Logout user by clearing authentication cookie.
 
     Args:
         response: FastAPI response object
+        settings: Application settings from DI
 
     Returns:
         Logout success message
     """
-    response.delete_cookie(key="auth_token")
+    # Delete cookie with same domain/path as when it was created
+    is_production = settings.environment == "production"
+    response.delete_cookie(
+        key="auth_token",
+        domain=".amacrin.com" if is_production else None,
+        path="/",
+    )
     return LogoutResponse(success=True, message="Successfully logged out")
 
 
