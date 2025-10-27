@@ -9,6 +9,7 @@ from talk.domain.repository import (
     CommentRepository,
     InviteRepository,
     PostRepository,
+    UserRepository,
     VoteRepository,
 )
 from talk.domain.service import (
@@ -17,6 +18,7 @@ from talk.domain.service import (
     InviteService,
     JWTService,
     PostService,
+    UserService,
     VoteService,
 )
 
@@ -70,3 +72,8 @@ class ProdDomainProvider(ProviderBase):
     def get_invite_service(self, invite_repository: InviteRepository) -> InviteService:
         """Provide invite domain service."""
         return InviteService(invite_repository=invite_repository)
+
+    @provide
+    def get_user_service(self, user_repository: UserRepository) -> UserService:
+        """Provide user domain service."""
+        return UserService(user_repository=user_repository)

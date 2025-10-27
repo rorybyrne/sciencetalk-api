@@ -37,6 +37,7 @@ class GetCurrentUserResponse(BaseModel):
     display_name: str | None
     avatar_url: str | None
     karma: int
+    created_at: datetime
     invite_quota: int
     invitations: list[InviteInfo]
 
@@ -100,6 +101,7 @@ class GetCurrentUserUseCase:
             display_name=user.display_name,
             avatar_url=user.avatar_url,
             karma=user.karma,
+            created_at=user.created_at,
             invite_quota=user.invite_quota,
             invitations=[
                 InviteInfo(

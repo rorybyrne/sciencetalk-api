@@ -15,6 +15,7 @@ from talk.application.usecase.post import (
     GetPostUseCase,
     ListPostsUseCase,
 )
+from talk.application.usecase.user import GetUserProfileUseCase
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
 from talk.domain.repository import PostRepository, UserRepository
 from talk.domain.service import (
@@ -23,6 +24,7 @@ from talk.domain.service import (
     InviteService,
     JWTService,
     PostService,
+    UserService,
     VoteService,
 )
 
@@ -126,3 +128,11 @@ class ProdApplicationProvider(ProviderBase):
             user_repository=user_repository,
             settings=settings,
         )
+
+    # User use cases
+    @provide(scope=Scope.REQUEST)
+    def get_get_user_profile_use_case(
+        self, user_service: UserService
+    ) -> GetUserProfileUseCase:
+        """Provide get user profile use case."""
+        return GetUserProfileUseCase(user_service=user_service)

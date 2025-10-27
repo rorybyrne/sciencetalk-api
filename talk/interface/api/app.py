@@ -11,6 +11,7 @@ from talk.interface.api.routes import (
     invites,
     oauth_metadata,
     posts,
+    users,
     votes,
 )
 from talk.util.di.container import create_container, setup_di
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app_instance.include_router(comments.router)
     app_instance.include_router(votes.router)
     app_instance.include_router(invites.router)
+    app_instance.include_router(users.router)
 
     # TODO: Add error handlers
 

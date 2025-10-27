@@ -6,6 +6,7 @@ from .comment_service import CommentService
 from .invite_service import InviteService
 from .jwt_service import JWTService
 from .post_service import PostService
+from .user_service import UserService
 from .vote_service import VoteService
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "JWTService",
     "PostService",
     "Service",
+    "UserService",
     "VoteService",
 ]
