@@ -22,8 +22,7 @@ config = context.config
 
 # Load our application settings
 settings = Settings()
-# Don't set via config.set_main_option to avoid ConfigParser interpolation issues
-# with special characters in the database password. We'll pass it directly later.
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -47,9 +46,9 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    # Use settings.database_url directly to avoid ConfigParser issues
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=settings.database_url,
+        url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
