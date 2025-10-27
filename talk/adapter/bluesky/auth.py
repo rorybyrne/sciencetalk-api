@@ -316,7 +316,7 @@ class ATProtocolOAuthClient:
 
         # Prepare PAR request
         headers = {
-            "DPoP": dpop_proof,
+            "DPoP": dpop_proof.serialize(),
             "Content-Type": "application/x-www-form-urlencoded",
         }
 
