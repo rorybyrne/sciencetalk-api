@@ -351,6 +351,14 @@ class ATProtocolOAuthClient:
                         nonce=new_nonce,
                     )
 
+            # Log error details before raising
+            if response.status_code >= 400:
+                try:
+                    error_body = response.json()
+                    logger.error(f"PAR request failed: {error_body}")
+                except Exception:
+                    logger.error(f"PAR request failed: {response.text}")
+
             response.raise_for_status()
             result = response.json()
 

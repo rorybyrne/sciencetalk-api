@@ -8,10 +8,10 @@ set dotenv-load
 SERVICE_NAME := "talk"
 
 # AWS region
-AWS_REGION := "eu-west-2"
+AWS_REGION := "us-east-1"
 
 # AWS profile (override with: AWS_PROFILE=myprofile just prod <command>)
-AWS_PROFILE := env_var_or_default("AWS_PROFILE", "default")
+AWS_PROFILE := "rb2053" #env_var_or_default("AWS_PROFILE", "default")
 
 # List all production commands
 default:
@@ -268,7 +268,8 @@ logs:
         --container-name app \
         --region {{AWS_REGION}} \
         --profile {{AWS_PROFILE}} \
-        --start-time $(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+        --start-time $(date -u -v-10M +%Y-%m-%dT%H:%M:%SZ) \
+        | jq -r '.logEvents[]? | "[" + .createdAt + "] " + .message'
 
 # Follow logs (polls every 5 seconds)
 logs-follow:
@@ -279,8 +280,8 @@ logs-follow:
             --container-name app \
             --region {{AWS_REGION}} \
             --profile {{AWS_PROFILE}} \
-            --start-time $(date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ) \
-            2>/dev/null || true; \
+            --start-time $(date -u -v-30S +%Y-%m-%dT%H:%M:%SZ) \
+            2>/dev/null | jq -r '.logEvents[]? | "[" + .createdAt + "] " + .message' || true; \
         sleep 5; \
     done
 
