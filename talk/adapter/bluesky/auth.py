@@ -434,9 +434,23 @@ class ATProtocolOAuthClient:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(token_endpoint, headers=headers, data=data)
 
+            logger.debug(f"Token exchange response status: {response.status_code}")
+
             # Handle DPoP nonce (update session but don't retry for token endpoint)
             if "DPoP-Nonce" in response.headers:
                 session.auth_server_nonce = response.headers["DPoP-Nonce"]
+
+            # Log error details before raising
+            if response.status_code >= 400:
+                try:
+                    error_body = response.json()
+                    logger.error(
+                        f"Token exchange failed (status {response.status_code}): {error_body}"
+                    )
+                except Exception:
+                    logger.error(
+                        f"Token exchange failed (status {response.status_code}): {response.text}"
+                    )
 
             response.raise_for_status()
             result = response.json()

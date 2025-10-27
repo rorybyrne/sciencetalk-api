@@ -18,7 +18,7 @@ def setup_logging(settings: Settings) -> None:
     if settings.debug:
         level = logging.DEBUG
     elif settings.environment == "production":
-        level = logging.INFO
+        level = logging.DEBUG  # Temporarily DEBUG for OAuth debugging
     else:
         level = logging.INFO
 
