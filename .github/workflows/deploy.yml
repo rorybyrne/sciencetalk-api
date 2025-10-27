@@ -157,8 +157,7 @@ jobs:
                 \"intervalSeconds\": 30,
                 \"path\": \"/health\",
                 \"successCodes\": \"200-499\"
-              },
-              \"certificateName\": \"${{ env.CERT_NAME }}\"
+              }
             }"
 
       - name: Wait for deployment
@@ -187,6 +186,15 @@ jobs:
 
           echo "⚠️  Deployment status unknown (timeout)"
           exit 1
+
+      - name: Enable custom domain with certificate
+        run: |
+          echo "🔒 Enabling custom domain with certificate..."
+          aws lightsail update-container-service \
+            --service-name ${{ env.SERVICE_NAME }} \
+            --public-domain-names "{\"${{ env.CERT_NAME }}\": [\"${{ env.CUSTOM_DOMAIN }}\"]}"
+
+          echo "✅ Custom domain enabled: ${{ env.CUSTOM_DOMAIN }}"
 
       - name: Verify health check
         run: |
