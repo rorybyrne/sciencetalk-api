@@ -71,6 +71,7 @@ async def create_invites(
     try:
         use_case_request = CreateInvitesRequest(
             inviter_id=payload.user_id,
+            inviter_handle=payload.handle,
             invitee_handles=request.invitee_handles,
         )
         response = await create_invites_use_case.execute(use_case_request)
@@ -126,6 +127,7 @@ async def get_invites(
     # Execute use case
     request = GetInvitesRequest(
         inviter_id=payload.user_id,
+        inviter_handle=payload.handle,
         status=status_filter,
         limit=limit,
         offset=offset,

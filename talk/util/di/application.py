@@ -125,22 +125,24 @@ class ProdApplicationProvider(ProviderBase):
     def get_create_invites_use_case(
         self,
         invite_service: InviteService,
-        user_repository: UserRepository,
+        user_service: UserService,
         settings: Settings,
     ) -> CreateInvitesUseCase:
         """Provide create invites use case."""
         return CreateInvitesUseCase(
             invite_service=invite_service,
-            user_repository=user_repository,
+            user_service=user_service,
             settings=settings,
         )
 
     @provide(scope=Scope.REQUEST)
     def get_get_invites_use_case(
-        self, invite_service: InviteService
+        self, invite_service: InviteService, user_service: UserService
     ) -> GetInvitesUseCase:
         """Provide get invites use case."""
-        return GetInvitesUseCase(invite_service=invite_service)
+        return GetInvitesUseCase(
+            invite_service=invite_service, user_service=user_service
+        )
 
     # User use cases
     @provide(scope=Scope.REQUEST)

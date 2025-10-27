@@ -10,6 +10,7 @@ from talk.application.usecase.invite.create_invites import CreateInvitesRequest
 from talk.config import InvitationSettings, Settings
 from talk.domain.model.user import User
 from talk.domain.repository import UserRepository
+from talk.domain.service import UserService
 from talk.domain.service import InviteService
 from talk.domain.value import UserId
 from talk.domain.value.types import BlueskyDID, Handle
@@ -44,15 +45,17 @@ class TestCreateInvitesUseCase:
         """Should create multiple invites when quota available."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=["friend1.bsky.social", "friend2.bsky.social"],
         )
 
@@ -60,7 +63,7 @@ class TestCreateInvitesUseCase:
         response = await use_case.execute(request)
 
         # Assert
-        assert response.created_count == 2
+        assert len(response.invites) == 2
         assert response.failed_handles == []
 
         # Verify invites were created
@@ -72,6 +75,7 @@ class TestCreateInvitesUseCase:
         """Should raise error when requested invites exceed available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
@@ -85,11 +89,12 @@ class TestCreateInvitesUseCase:
         await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
         await invite_service.create_invite(user.id, Handle(root="used3.bsky.social"))
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         # Try to create 3 more (only 2 available)
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=[
                 "new1.bsky.social",
                 "new2.bsky.social",
@@ -106,6 +111,7 @@ class TestCreateInvitesUseCase:
         """Unlimited inviters should bypass quota restrictions."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
@@ -121,11 +127,12 @@ class TestCreateInvitesUseCase:
 
         # Configure unlimited inviters
         settings.invitations = InvitationSettings(unlimited_inviters=[handle])
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         # Try to create more invites (should succeed despite quota exhausted)
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=["bonus1.bsky.social", "bonus2.bsky.social"],
         )
 
@@ -133,7 +140,7 @@ class TestCreateInvitesUseCase:
         response = await use_case.execute(request)
 
         # Assert
-        assert response.created_count == 2
+        assert len(response.invites) == 2
         assert response.failed_handles == []
 
         # Verify we now have 7 pending invites (5 + 2)
@@ -145,6 +152,7 @@ class TestCreateInvitesUseCase:
         """Should track failed handles when duplicates exist."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
@@ -153,10 +161,11 @@ class TestCreateInvitesUseCase:
         # Create an existing invite
         await invite_service.create_invite(user.id, Handle(root="existing.bsky.social"))
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=[
                 "new.bsky.social",
                 "existing.bsky.social",  # Duplicate
@@ -169,7 +178,7 @@ class TestCreateInvitesUseCase:
 
         # Assert
         assert (
-            response.created_count == 2
+            len(response.invites) == 2
         )  # Only new.bsky.social and another.bsky.social
         assert "existing.bsky.social" in response.failed_handles
 
@@ -188,6 +197,7 @@ class TestCreateInvitesUseCase:
         with pytest.raises(ValidationError):
             CreateInvitesRequest(
                 inviter_id=str(user.id),
+                inviter_handle=str(user.handle),
                 invitee_handles=[f"user{i}.bsky.social" for i in range(11)],
             )
 
@@ -195,15 +205,16 @@ class TestCreateInvitesUseCase:
     async def test_create_invites_with_nonexistent_user_raises_error(self, unit_env):
         """Should raise error when inviter user not found."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         # Use non-existent user ID
         request = CreateInvitesRequest(
             inviter_id=str(uuid4()),
+            inviter_handle="nonexistent.bsky.social",
             invitee_handles=["friend.bsky.social"],
         )
 
@@ -216,6 +227,7 @@ class TestCreateInvitesUseCase:
         """Should raise error when user has zero available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
@@ -228,10 +240,11 @@ class TestCreateInvitesUseCase:
         await invite_service.create_invite(user.id, Handle(root="used1.bsky.social"))
         await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=["new.bsky.social"],
         )
 
@@ -244,6 +257,7 @@ class TestCreateInvitesUseCase:
         """Should succeed when creating invites within available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
@@ -257,11 +271,12 @@ class TestCreateInvitesUseCase:
         await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
         await invite_service.create_invite(user.id, Handle(root="used3.bsky.social"))
 
-        use_case = CreateInvitesUseCase(invite_service, user_repo, settings)
+        use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
         # Create exactly 2 more (uses all remaining quota)
         request = CreateInvitesRequest(
             inviter_id=str(user.id),
+            inviter_handle=str(user.handle),
             invitee_handles=["new1.bsky.social", "new2.bsky.social"],
         )
 
@@ -269,7 +284,7 @@ class TestCreateInvitesUseCase:
         response = await use_case.execute(request)
 
         # Assert
-        assert response.created_count == 2
+        assert len(response.invites) == 2
         assert response.failed_handles == []
 
         # Verify quota is now fully used

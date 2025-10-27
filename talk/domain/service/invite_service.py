@@ -129,3 +129,18 @@ class InviteService(Service):
         return await self.invite_repository.find_by_inviter(
             inviter_id, status, limit, offset
         )
+
+    async def get_available_quota(self, user_quota: int, inviter_id: UserId) -> int:
+        """Calculate available invite quota for a user.
+
+        Domain logic: available quota = user's total quota - pending invites
+
+        Args:
+            user_quota: User's total invite quota
+            inviter_id: User ID
+
+        Returns:
+            Number of invites user can still create
+        """
+        pending_count = await self.get_pending_count(inviter_id)
+        return max(0, user_quota - pending_count)
