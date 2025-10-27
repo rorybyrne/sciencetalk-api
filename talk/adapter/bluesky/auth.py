@@ -306,6 +306,10 @@ class ATProtocolOAuthClient:
         Raises:
             BlueskyAuthError: If PAR request fails
         """
+        logger.debug(
+            f"Making PAR request to {par_endpoint} (nonce={'present' if nonce else 'none'})"
+        )
+
         # Create DPoP proof for PAR request
         dpop_proof = create_dpop_proof(
             http_method="POST",
@@ -334,30 +338,48 @@ class ATProtocolOAuthClient:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(par_endpoint, headers=headers, data=data)
 
-            # Handle DPoP nonce requirement
-            if response.status_code == 401:
-                error_data = response.json()
-                if error_data.get("error") == "use_dpop_nonce":
-                    # Retry with nonce from response
-                    new_nonce = response.headers.get("DPoP-Nonce")
-                    if not new_nonce:
-                        raise BlueskyAuthError("Missing DPoP-Nonce in 401 response")
-                    return await self._make_par_request(
-                        par_endpoint=par_endpoint,
-                        pkce_challenge=pkce_challenge,
-                        dpop_keypair=dpop_keypair,
-                        login_hint=login_hint,
-                        state=state,
-                        nonce=new_nonce,
-                    )
+            logger.debug(f"PAR response status: {response.status_code}")
+
+            # Handle DPoP nonce requirement (can be 400 or 401)
+            if response.status_code in [400, 401]:
+                try:
+                    error_data = response.json()
+                    if error_data.get("error") == "use_dpop_nonce":
+                        # Get nonce from response header
+                        new_nonce = response.headers.get("DPoP-Nonce")
+                        if not new_nonce:
+                            logger.error(
+                                f"Server requires nonce but didn't provide DPoP-Nonce header. "
+                                f"Status: {response.status_code}, Headers: {dict(response.headers)}"
+                            )
+                            raise BlueskyAuthError(
+                                f"Missing DPoP-Nonce in {response.status_code} response"
+                            )
+
+                        logger.info("Retrying PAR request with DPoP nonce")
+                        return await self._make_par_request(
+                            par_endpoint=par_endpoint,
+                            pkce_challenge=pkce_challenge,
+                            dpop_keypair=dpop_keypair,
+                            login_hint=login_hint,
+                            state=state,
+                            nonce=new_nonce,
+                        )
+                except ValueError:
+                    # Response isn't JSON, fall through to error handling below
+                    pass
 
             # Log error details before raising
             if response.status_code >= 400:
                 try:
                     error_body = response.json()
-                    logger.error(f"PAR request failed: {error_body}")
+                    logger.error(
+                        f"PAR request failed (status {response.status_code}): {error_body}"
+                    )
                 except Exception:
-                    logger.error(f"PAR request failed: {response.text}")
+                    logger.error(
+                        f"PAR request failed (status {response.status_code}): {response.text}"
+                    )
 
             response.raise_for_status()
             result = response.json()
