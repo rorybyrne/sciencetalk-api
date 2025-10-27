@@ -268,7 +268,7 @@ logs:
         --container-name app \
         --region {{AWS_REGION}} \
         --profile {{AWS_PROFILE}} \
-        --start-time $(date -u -v-10M +%Y-%m-%dT%H:%M:%SZ) \
+        --start-time $(date -u -v-5M +%Y-%m-%dT%H:%M:%SZ) \
         | jq -r '.logEvents[]? | "[" + .createdAt + "] " + .message'
 
 # Follow logs (polls every 5 seconds)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from talk.domain.model import Comment
 from talk.domain.repository import CommentRepository
 from talk.domain.value import CommentId, PostId, UserId
-from talk.persistence.mappers import comment_to_dict, row_to_comment
+from talk.persistence.mappers import row_to_comment
 from talk.persistence.tables import comments_table
 
 
@@ -87,7 +87,8 @@ class PostgresCommentRepository(CommentRepository):
         """Save a comment (create or update)."""
         existing = await self.find_by_id(comment.id)
 
-        comment_dict = comment_to_dict(comment)
+        # Exclude path and depth - these are managed by database triggers
+        comment_dict = comment.model_dump(exclude={"path", "depth"})
 
         if existing:
             # Update
@@ -98,7 +99,7 @@ class PostgresCommentRepository(CommentRepository):
             )
             await self.session.execute(stmt)
         else:
-            # Insert - database trigger will set path and depth
+            # Insert
             stmt = comments_table.insert().values(**comment_dict)
             await self.session.execute(stmt)
 
