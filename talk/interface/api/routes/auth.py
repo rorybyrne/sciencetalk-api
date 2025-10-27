@@ -1,7 +1,10 @@
 """Authentication routes."""
 
+import logging
+
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from talk.adapter.bluesky.auth import BlueskyAuthError
@@ -14,6 +17,8 @@ from talk.application.usecase.auth.login import LoginRequest
 from talk.config import Settings
 from talk.domain.service import AuthService
 from talk.util.jwt import JWTError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
@@ -88,7 +93,6 @@ async def login_callback(
     code: str,
     state: str,
     iss: str,
-    response: Response,
     login_use_case: FromDishka[LoginUseCase],
     settings: FromDishka[Settings],
 ):
@@ -102,12 +106,11 @@ async def login_callback(
         code: Authorization code from OAuth provider
         state: State parameter for session verification
         iss: Issuer URL for verification
-        response: FastAPI response object
         login_use_case: Login use case from DI
         settings: Application settings from DI
 
     Returns:
-        HTTP 302 redirect to frontend
+        HTTP 302 redirect to frontend with Set-Cookie header
 
     Raises:
         HTTPException: If login fails
@@ -115,14 +118,20 @@ async def login_callback(
     Example:
         GET /auth/callback?code=abc123&state=xyz789&iss=https://bsky.social
 
-        Redirects to: https://frontend.example.com/
-        Sets cookie: auth_token (HTTP-only, Secure, SameSite=Lax)
+        Redirects to: https://talk.amacrin.com/
+        Sets cookie: auth_token
+          - Production: HttpOnly, Secure, SameSite=None, Domain=.amacrin.com
+          - Development: HttpOnly, SameSite=Lax
     """
+    logger.info(f"OAuth callback received: state={state}, iss={iss}")
+
     try:
         # Execute login use case
+        logger.info("Executing login use case...")
         login_response = await login_use_case.execute(
             LoginRequest(code=code, state=state, iss=iss)
         )
+        logger.info(f"Login successful for user: {login_response.handle}")
 
         # Set HTTP-only cookie with JWT token
         # Production (cross-subdomain): talk.amacrin.com → api.talk.amacrin.com
@@ -134,49 +143,66 @@ async def login_callback(
         #   - secure=False to allow HTTP
         #   - domain=None (default to current host)
         is_production = settings.environment == "production"
-        response.set_cookie(
-            key="auth_token",
-            value=login_response.token,
-            httponly=True,
-            secure=is_production,  # HTTPS required in production
-            samesite="none"
-            if is_production
-            else "lax",  # "none" for cross-subdomain, "lax" for localhost
-            domain=".amacrin.com"
-            if is_production
-            else None,  # Share across subdomains in production only
-            path="/",
-            max_age=settings.auth.jwt_expiry_days * 24 * 60 * 60,  # seconds
+
+        # Prepare cookie settings
+        cookie_domain = ".amacrin.com" if is_production else None
+        cookie_secure = is_production
+        cookie_samesite = "none" if is_production else "lax"
+        cookie_max_age = settings.auth.jwt_expiry_days * 24 * 60 * 60
+
+        logger.info(
+            f"Setting auth cookie with settings: "
+            f"environment={settings.environment}, "
+            f"is_production={is_production}, "
+            f"domain={cookie_domain}, "
+            f"secure={cookie_secure}, "
+            f"samesite={cookie_samesite}, "
+            f"httponly=True, "
+            f"path=/, "
+            f"max_age={cookie_max_age}"
         )
 
-        # Redirect to frontend
-        from fastapi.responses import RedirectResponse
-
-        return RedirectResponse(
-            url=settings.api.frontend_url,
+        # Create redirect response and set cookie on it
+        # IMPORTANT: When returning a Response directly (like RedirectResponse),
+        # cookies must be set on that response object, not the response parameter
+        redirect_url = settings.api.frontend_url
+        redirect_response = RedirectResponse(
+            url=redirect_url,
             status_code=status.HTTP_302_FOUND,
         )
 
+        redirect_response.set_cookie(
+            key="auth_token",
+            value=login_response.token,
+            httponly=True,
+            secure=cookie_secure,
+            samesite=cookie_samesite,
+            domain=cookie_domain,
+            path="/",
+            max_age=cookie_max_age,
+        )
+
+        logger.info(f"Auth cookie set successfully, redirecting to: {redirect_url}")
+
+        return redirect_response
+
     except ValueError as e:
         # Invite-only error
-        from fastapi.responses import RedirectResponse
-
+        logger.error(f"Invite-only error during OAuth callback: {str(e)}")
         return RedirectResponse(
             url=f"{settings.api.frontend_url}/auth/error?error=no_invite&message={str(e)}",
             status_code=status.HTTP_302_FOUND,
         )
     except BlueskyAuthError as e:
         # OAuth error
-        from fastapi.responses import RedirectResponse
-
+        logger.error(f"Bluesky OAuth error during callback: {str(e)}")
         return RedirectResponse(
             url=f"{settings.api.frontend_url}/auth/error?error=auth_failed&message={str(e)}",
             status_code=status.HTTP_302_FOUND,
         )
     except Exception as e:
         # Unexpected error
-        from fastapi.responses import RedirectResponse
-
+        logger.exception(f"Unexpected error during OAuth callback: {str(e)}")
         return RedirectResponse(
             url=f"{settings.api.frontend_url}/auth/error?error=unexpected&message={str(e)}",
             status_code=status.HTTP_302_FOUND,

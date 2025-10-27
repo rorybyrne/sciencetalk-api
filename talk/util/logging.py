@@ -34,7 +34,6 @@ def setup_logging(settings: Settings) -> None:
     # Set third-party loggers to WARNING to reduce noise
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
     # Our application loggers stay at the configured level
     logging.getLogger("talk").setLevel(level)
