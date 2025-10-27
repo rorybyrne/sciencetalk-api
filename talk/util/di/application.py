@@ -9,7 +9,7 @@ from talk.application.usecase.comment import (
     CreateCommentUseCase,
     GetCommentsUseCase,
 )
-from talk.application.usecase.invite import CreateInvitesUseCase
+from talk.application.usecase.invite import CreateInvitesUseCase, GetInvitesUseCase
 from talk.application.usecase.post import (
     CreatePostUseCase,
     GetPostUseCase,
@@ -134,6 +134,13 @@ class ProdApplicationProvider(ProviderBase):
             user_repository=user_repository,
             settings=settings,
         )
+
+    @provide(scope=Scope.REQUEST)
+    def get_get_invites_use_case(
+        self, invite_service: InviteService
+    ) -> GetInvitesUseCase:
+        """Provide get invites use case."""
+        return GetInvitesUseCase(invite_service=invite_service)
 
     # User use cases
     @provide(scope=Scope.REQUEST)
