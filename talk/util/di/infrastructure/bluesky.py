@@ -2,7 +2,11 @@
 
 from dishka import Scope, provide
 
-from talk.adapter.bluesky.auth import BlueskyAuthClient, MockBlueskyAuthClient
+from talk.adapter.bluesky.auth import (
+    ATProtocolOAuthClient,
+    BlueskyAuthClient,
+    MockBlueskyAuthClient,
+)
 from talk.config import Settings
 from talk.util.di.base import ProviderBase
 
@@ -22,10 +26,11 @@ class ProdBlueskyProvider(BlueskyProvider):
     def get_bluesky_auth_client(self, settings: Settings) -> BlueskyAuthClient:
         """Provide Bluesky authentication client.
 
-        Returns mock implementation for now. Replace with real implementation
-        when OAuth credentials are configured.
+        Uses real AT Protocol OAuth client when configured, otherwise mock.
         """
-        # TODO: Check settings and return real client when configured
-        # if settings.auth.bluesky_client_id:
-        #     return RealBlueskyAuthClient(...)
+        if settings.auth.oauth_client_id and settings.auth.oauth_redirect_uri:
+            return ATProtocolOAuthClient(
+                client_id=settings.auth.oauth_client_id,
+                redirect_uri=settings.auth.oauth_redirect_uri,
+            )
         return MockBlueskyAuthClient()

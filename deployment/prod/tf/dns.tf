@@ -26,7 +26,6 @@ resource "aws_lightsail_domain_entry" "vercel_main" {
 
 # Talk Vercel app at talk subdomain
 # resource "aws_lightsail_domain_entry" "vercel_talk" {
-#   provider    = aws.us_east_1
 #   count       = var.vercel_talk_cname != "" ? 1 : 0
 #   domain_name = aws_lightsail_domain.main.domain_name
 #   name        = "talk"

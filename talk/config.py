@@ -25,6 +25,12 @@ class AuthSettings(BaseModel):
     # AT Protocol OAuth
     default_pds_url: str = "https://bsky.social"  # Default PDS for handle resolution
 
+    # OAuth client configuration
+    # client_id is the URL where client metadata is hosted
+    # For AT Protocol, this should be: https://your-api-domain.com/client-metadata.json
+    oauth_client_id: str | None = None
+    oauth_redirect_uri: str | None = None
+
 
 class InvitationSettings(BaseModel):
     """Invitation configuration."""

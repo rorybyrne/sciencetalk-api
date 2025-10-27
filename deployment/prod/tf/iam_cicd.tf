@@ -45,6 +45,7 @@ resource "aws_iam_policy" "cicd_lightsail" {
         Effect = "Allow"
         Action = [
           "lightsail:CreateContainerServiceDeployment",
+          "lightsail:UpdateContainerService",
         ]
         Resource = aws_lightsail_container_service.main.arn
       },

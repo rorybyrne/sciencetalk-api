@@ -11,6 +11,15 @@ resource "aws_lightsail_container_service" "main" {
       is_active = true
     }
   }
+  public_domain_names {
+    certificate {
+      certificate_name = "talk-cert"
+      domain_names = [
+        "talk-api.amacrin.com",
+      ]
+    }
+  }
+
 
   tags = {
     Name    = "${var.project_name}-container"
