@@ -147,7 +147,7 @@ class ATProtocolOAuthClient:
             state = secrets.token_urlsafe(32)
 
             # Step 6: Make Pushed Authorization Request
-            request_uri = await self._make_par_request(
+            request_uri, dpop_nonce = await self._make_par_request(
                 par_endpoint=auth_metadata.pushed_authorization_request_endpoint,
                 pkce_challenge=pkce_challenge,
                 dpop_keypair=dpop_keypair,
@@ -163,6 +163,7 @@ class ATProtocolOAuthClient:
                 dpop_keypair=dpop_keypair,
                 account_did=str(did),
                 auth_server_issuer=auth_metadata.issuer,
+                auth_server_nonce=dpop_nonce,  # Save nonce from PAR for token exchange
                 created_at=datetime.now(timezone.utc),
                 expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
             )
@@ -289,7 +290,7 @@ class ATProtocolOAuthClient:
         login_hint: str,
         state: str,
         nonce: str | None = None,
-    ) -> str:
+    ) -> tuple[str, str | None]:
         """Make Pushed Authorization Request (PAR).
 
         Args:
@@ -301,7 +302,7 @@ class ATProtocolOAuthClient:
             nonce: Server nonce (for retry)
 
         Returns:
-            request_uri token for authorization URL
+            Tuple of (request_uri token, DPoP nonce from server)
 
         Raises:
             BlueskyAuthError: If PAR request fails
@@ -382,6 +383,18 @@ class ATProtocolOAuthClient:
                     )
 
             response.raise_for_status()
+
+            # Validate DPoP-Nonce header is present (required by spec)
+            dpop_nonce = response.headers.get("DPoP-Nonce")
+            if not dpop_nonce:
+                logger.error(
+                    "PAR response missing required DPoP-Nonce header "
+                    f"(headers: {dict(response.headers)})"
+                )
+                raise BlueskyAuthError(
+                    "PAR response missing required DPoP-Nonce header"
+                )
+
             result = response.json()
 
             # Extract request_uri from response
@@ -389,7 +402,9 @@ class ATProtocolOAuthClient:
             if not request_uri:
                 raise BlueskyAuthError("Missing request_uri in PAR response")
 
-            return request_uri
+            logger.debug("PAR successful: request_uri obtained, nonce received")
+
+            return request_uri, dpop_nonce
 
     async def _exchange_code_for_token(
         self,
@@ -402,7 +417,7 @@ class ATProtocolOAuthClient:
         Args:
             token_endpoint: Token endpoint URL
             code: Authorization code
-            session: OAuth session with PKCE and DPoP
+            session: OAuth session with PKCE and DPoP (includes nonce from PAR)
 
         Returns:
             Access token
@@ -410,7 +425,11 @@ class ATProtocolOAuthClient:
         Raises:
             BlueskyAuthError: If token exchange fails
         """
-        # Create DPoP proof for token request
+        logger.debug(
+            f"Exchanging code for token (nonce={'present' if session.auth_server_nonce else 'none'})"
+        )
+
+        # Create DPoP proof for token request (using nonce from PAR)
         dpop_proof = create_dpop_proof(
             http_method="POST",
             http_url=token_endpoint,
@@ -436,10 +455,6 @@ class ATProtocolOAuthClient:
 
             logger.debug(f"Token exchange response status: {response.status_code}")
 
-            # Handle DPoP nonce (update session but don't retry for token endpoint)
-            if "DPoP-Nonce" in response.headers:
-                session.auth_server_nonce = response.headers["DPoP-Nonce"]
-
             # Log error details before raising
             if response.status_code >= 400:
                 try:
@@ -453,11 +468,40 @@ class ATProtocolOAuthClient:
                     )
 
             response.raise_for_status()
+
+            # Validate DPoP-Nonce header is present (required by spec)
+            dpop_nonce = response.headers.get("DPoP-Nonce")
+            if not dpop_nonce:
+                logger.error(
+                    "Token response missing required DPoP-Nonce header "
+                    f"(headers: {dict(response.headers)})"
+                )
+                raise BlueskyAuthError(
+                    "Token response missing required DPoP-Nonce header"
+                )
+
+            # Update session with new nonce for future requests
+            session.auth_server_nonce = dpop_nonce
+            logger.debug("Updated session with new DPoP nonce")
+
             result = response.json()
 
+            # Validate required token response fields
             access_token = result.get("access_token")
             if not access_token:
                 raise BlueskyAuthError("Missing access_token in token response")
+
+            # Validate scope field is present (required by spec)
+            scope = result.get("scope")
+            if not scope:
+                logger.error(f"Token response missing scope field: {result}")
+                raise BlueskyAuthError("Token response missing required scope field")
+
+            # Verify scope includes atproto
+            scopes = scope.split()
+            if "atproto" not in scopes:
+                logger.error(f"Token response scope missing 'atproto': {scope}")
+                raise BlueskyAuthError("Token response scope missing 'atproto'")
 
             # Extract sub (DID) for verification
             sub = result.get("sub")
@@ -466,6 +510,7 @@ class ATProtocolOAuthClient:
                     f"Token sub mismatch: expected {session.account_did}, got {sub}"
                 )
 
+            logger.debug(f"Token exchange successful, scope: {scope}")
             return access_token
 
     async def _get_user_profile(
@@ -507,7 +552,26 @@ class ATProtocolOAuthClient:
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(profile_url, headers=headers)
+
+            # Log error details before raising
+            if response.status_code >= 400:
+                try:
+                    error_body = response.json()
+                    logger.error(
+                        f"Profile fetch failed (status {response.status_code}): {error_body}"
+                    )
+                except Exception:
+                    logger.error(
+                        f"Profile fetch failed (status {response.status_code}): {response.text}"
+                    )
+
             response.raise_for_status()
+
+            # Note: DPoP-Nonce validation is optional for PDS requests
+            # The PDS may or may not return a nonce depending on its configuration
+            if "DPoP-Nonce" in response.headers:
+                logger.debug("PDS returned DPoP-Nonce header")
+
             result = response.json()
 
             # Extract user info from response

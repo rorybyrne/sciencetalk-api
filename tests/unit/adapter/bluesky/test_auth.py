@@ -85,7 +85,10 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
             with patch.object(
                 oauth_client, "_make_par_request", new_callable=AsyncMock
             ) as mock_par:
-                mock_par.return_value = "urn:ietf:params:oauth:request_uri:abc123"
+                mock_par.return_value = (
+                    "urn:ietf:params:oauth:request_uri:abc123",
+                    "test_nonce",
+                )
 
                 # Execute
                 auth_url = await oauth_client.initiate_authorization(
@@ -139,7 +142,10 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
             with patch.object(
                 oauth_client, "_make_par_request", new_callable=AsyncMock
             ) as mock_par:
-                mock_par.return_value = "urn:ietf:params:oauth:request_uri:abc123"
+                mock_par.return_value = (
+                    "urn:ietf:params:oauth:request_uri:abc123",
+                    "test_nonce",
+                )
 
                 await oauth_client.initiate_authorization("did:plc:abc123")
 
@@ -179,7 +185,10 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
             with patch.object(
                 oauth_client, "_make_par_request", new_callable=AsyncMock
             ) as mock_par:
-                mock_par.return_value = "urn:ietf:params:oauth:request_uri:abc123"
+                mock_par.return_value = (
+                    "urn:ietf:params:oauth:request_uri:abc123",
+                    "test_nonce",
+                )
 
                 await oauth_client.initiate_authorization("alice.bsky.social")
 
@@ -394,6 +403,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
         mock_response.json = MagicMock(
             return_value={"request_uri": "urn:ietf:params:oauth:request_uri:abc123"}
         )
+        mock_response.headers = {"DPoP-Nonce": "test_nonce"}
         mock_response.raise_for_status = MagicMock()
 
         with patch("httpx.AsyncClient") as mock_client:
@@ -401,7 +411,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
                 return_value=mock_response
             )
 
-            request_uri = await oauth_client._make_par_request(
+            request_uri, dpop_nonce = await oauth_client._make_par_request(
                 par_endpoint="https://bsky.social/oauth/par",
                 pkce_challenge="test_challenge",
                 dpop_keypair=dpop_keypair,
@@ -410,6 +420,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
             )
 
             assert request_uri == "urn:ietf:params:oauth:request_uri:abc123"
+            assert dpop_nonce == "test_nonce"
 
     @pytest.mark.asyncio
     async def test_retries_with_dpop_nonce(self, oauth_client):
@@ -428,6 +439,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
         mock_response_200.json = MagicMock(
             return_value={"request_uri": "urn:ietf:params:oauth:request_uri:abc123"}
         )
+        mock_response_200.headers = {"DPoP-Nonce": "server_nonce_123"}
         mock_response_200.raise_for_status = MagicMock()
 
         with patch("httpx.AsyncClient") as mock_client:
@@ -436,7 +448,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
                 side_effect=[mock_response_401, mock_response_200]
             )
 
-            request_uri = await oauth_client._make_par_request(
+            request_uri, dpop_nonce = await oauth_client._make_par_request(
                 par_endpoint="https://bsky.social/oauth/par",
                 pkce_challenge="test_challenge",
                 dpop_keypair=dpop_keypair,
@@ -446,6 +458,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
 
             # Should succeed on retry
             assert request_uri == "urn:ietf:params:oauth:request_uri:abc123"
+            assert dpop_nonce == "server_nonce_123"
 
             # Verify two calls were made
             assert mock_client.return_value.__aenter__.return_value.post.call_count == 2
@@ -483,11 +496,12 @@ class TestExchangeCodeForToken(TestATProtocolOAuthClient):
         """Should exchange authorization code for access token."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.headers = {}
+        mock_response.headers = {"DPoP-Nonce": "test_nonce_123"}
         mock_response.json = MagicMock(
             return_value={
                 "access_token": "access_token_123",
                 "token_type": "DPoP",
+                "scope": "atproto",
                 "sub": "did:plc:abc123",
             }
         )
@@ -513,10 +527,11 @@ class TestExchangeCodeForToken(TestATProtocolOAuthClient):
         """Should verify token sub matches expected DID."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.headers = {}
+        mock_response.headers = {"DPoP-Nonce": "test_nonce_123"}
         mock_response.json = MagicMock(
             return_value={
                 "access_token": "access_token_123",
+                "scope": "atproto",
                 "sub": "did:plc:different",  # Different from session
             }
         )
@@ -539,8 +554,10 @@ class TestExchangeCodeForToken(TestATProtocolOAuthClient):
         """Should raise error if response missing access_token."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.headers = {}
-        mock_response.json = MagicMock(return_value={})  # Missing access_token
+        mock_response.headers = {"DPoP-Nonce": "test_nonce_123"}
+        mock_response.json = MagicMock(
+            return_value={"scope": "atproto"}
+        )  # Missing access_token
         mock_response.raise_for_status = MagicMock()
 
         with patch("httpx.AsyncClient") as mock_client:

@@ -58,7 +58,10 @@ def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMeta
         client_name="Science Talk",
         client_uri=base_url,
         redirect_uris=[f"{base_url}/auth/callback"],
-        grant_types=["authorization_code"],  # No refresh_token for sign-in only
+        grant_types=[
+            "authorization_code",
+            "refresh_token",
+        ],  # Required by AT Protocol spec
         response_types=["code"],
         scope="atproto",
         token_endpoint_auth_method="none",  # Public client (no client secret)
