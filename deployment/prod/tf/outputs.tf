@@ -22,9 +22,9 @@ output "database_url" {
   sensitive   = true
 }
 
-output "route53_nameservers" {
+output "lightsail_nameservers" {
   description = "Nameservers to configure at your domain registrar"
-  value       = aws_route53_zone.main.name_servers
+  value       = "Check Lightsail Console → Networking → DNS zones → ${var.domain_name}"
 }
 
 output "jwt_secret" {
@@ -56,11 +56,17 @@ output "env_file_content" {
 
     # API URLs
     api_base_url     = "https://${var.subdomain}.${var.domain_name}"
-    api_frontend_url = "https://${var.domain_name}"
+    api_frontend_url = "https://talk.${var.domain_name}"
 
     # Environment
     environment = "production"
     debug       = "false"
+
+    # AWS Configuration (for GitHub Actions)
+    aws_region          = var.aws_region
+    lightsail_service   = var.project_name
+    custom_domain       = "${var.subdomain}.${var.domain_name}"
+    certificate_name    = "${var.project_name}-cert"
 
     # Static configuration from .env.base
     env_base_content = file("${path.module}/../.env.base")
@@ -78,8 +84,8 @@ output "next_steps" {
     📋 NEXT STEPS:
 
     1️⃣  UPDATE DOMAIN NAMESERVERS
-        Configure these nameservers at your domain registrar:
-        ${join("\n        ", aws_route53_zone.main.name_servers)}
+        Go to Lightsail Console → Networking → DNS zones → ${var.domain_name}
+        Copy the 4 nameservers and configure them at your domain registrar
 
         ⏱  DNS propagation can take 24-48 hours
 
@@ -128,8 +134,8 @@ output "next_steps" {
 
     - Lightsail Container: ${var.project_name} (${var.container_power})
     - Lightsail Database: ${var.project_name}-db (PostgreSQL 17)
-    - Route 53 Hosted Zone: ${var.domain_name}
-    - SSL Certificate: ${var.project_name}-cert
+    - Lightsail DNS Zone: ${var.domain_name}
+    - Lightsail Certificate: ${var.project_name}-cert (auto-validated)
     - IAM User: ${var.project_name}-cicd (for GitHub Actions)
     - .env file: deployment/prod/.env (automatically generated)
 

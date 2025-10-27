@@ -20,9 +20,10 @@ from talk.config import Settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# Load our application settings and set the database URL
+# Load our application settings
 settings = Settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Don't set via config.set_main_option to avoid ConfigParser interpolation issues
+# with special characters in the database password. We'll pass it directly later.
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -46,9 +47,9 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    # Use settings.database_url directly to avoid ConfigParser issues
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

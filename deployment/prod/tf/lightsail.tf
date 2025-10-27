@@ -18,19 +18,20 @@ resource "aws_lightsail_container_service" "main" {
   }
 }
 
-# SSL/TLS Certificate for custom domain
+# SSL Certificate for custom domain
 resource "aws_lightsail_certificate" "main" {
   name        = "${var.project_name}-cert"
   domain_name = "${var.subdomain}.${var.domain_name}"
 
-  # No subject alternative names needed for single domain
-  subject_alternative_names = []
-
   tags = {
-    Name = "${var.project_name}-cert"
+    Name    = "${var.project_name}-cert"
+    Project = var.project_display_name
   }
 }
 
 # Note: Container deployment is handled by GitHub Actions CI/CD
 # Do not create aws_lightsail_container_service_deployment_version here
 # See .github/workflows/deploy.yml for deployment configuration
+#
+# IMPORTANT: Custom domain must be enabled in the deployment.
+# See .github/workflows/deploy.yml for public endpoint configuration with custom domain.

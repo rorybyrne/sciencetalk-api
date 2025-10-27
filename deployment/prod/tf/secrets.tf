@@ -28,11 +28,7 @@ resource "random_password" "jwt_secret" {
 # Generate secure database password
 resource "random_password" "db_password" {
   length  = 32
-  special = true
-
-  # Use only PostgreSQL-safe special characters
-  # Avoid characters that might cause issues in connection strings
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  special = false
 
   # Preserve value across runs (don't regenerate on every apply)
   lifecycle {

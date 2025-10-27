@@ -18,11 +18,17 @@ resource "local_file" "env" {
 
     # API URLs
     api_base_url     = "https://${var.subdomain}.${var.domain_name}"
-    api_frontend_url = "https://${var.domain_name}"
+    api_frontend_url = "https://talk.${var.domain_name}"
 
     # Environment
     environment = "production"
     debug       = "false"
+
+    # AWS Configuration (for GitHub Actions)
+    aws_region          = var.aws_region
+    lightsail_service   = var.project_name
+    custom_domain       = "${var.subdomain}.${var.domain_name}"
+    certificate_name    = "${var.project_name}-cert"
 
     # Static configuration from .env.base
     env_base_content = file("${path.module}/../.env.base")

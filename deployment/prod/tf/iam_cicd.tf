@@ -33,7 +33,10 @@ resource "aws_iam_policy" "cicd_lightsail" {
         Effect = "Allow"
         Action = [
           "lightsail:PushContainerImage",
+          "lightsail:RegisterContainerImage",
           "lightsail:CreateContainerServiceRegistryLogin",
+          "lightsail:GetContainerServices",
+          "lightsail:GetContainerServiceDeployments",
         ]
         Resource = "*"
       },
@@ -41,8 +44,6 @@ resource "aws_iam_policy" "cicd_lightsail" {
         Sid    = "LightsailContainerServiceManagement"
         Effect = "Allow"
         Action = [
-          "lightsail:GetContainerServices",
-          "lightsail:GetContainerServiceDeployments",
           "lightsail:CreateContainerServiceDeployment",
         ]
         Resource = aws_lightsail_container_service.main.arn
