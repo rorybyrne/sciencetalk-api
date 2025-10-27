@@ -49,6 +49,7 @@ class TestDiscoverAuthServer:
 
             # Setup mock response
             mock_response = AsyncMock(spec=Response)
+            mock_response.status_code = 200
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
             mock_client.get.return_value = mock_response
@@ -87,6 +88,7 @@ class TestDiscoverAuthServer:
             mock_client_class.return_value.__aenter__.return_value = mock_client
 
             mock_response = AsyncMock(spec=Response)
+            mock_response.status_code = 200
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
             mock_client.get.return_value = mock_response
@@ -114,6 +116,7 @@ class TestDiscoverAuthServer:
             mock_client_class.return_value.__aenter__.return_value = mock_client
 
             mock_response = AsyncMock(spec=Response)
+            mock_response.status_code = 200
             mock_response.json.return_value = mock_response_data
             mock_response.raise_for_status.return_value = None
             mock_client.get.return_value = mock_response

@@ -1,5 +1,6 @@
 """Bluesky OAuth authentication adapter."""
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -17,6 +18,8 @@ from talk.adapter.bluesky.metadata import discover_auth_server
 from talk.adapter.bluesky.pkce import generate_pkce_pair
 from talk.adapter.bluesky.session import InMemorySessionStore, OAuthSession
 from talk.domain.value.types import BlueskyDID
+
+logger = logging.getLogger(__name__)
 
 
 class BlueskyUserInfo(BaseModel):
@@ -115,18 +118,26 @@ class ATProtocolOAuthClient:
             BlueskyAuthError: If initialization fails at any step
         """
         try:
+            logger.info(f"OAuth login initiated for account: {account_identifier}")
+
             # Step 1: Resolve account to DID
             if account_identifier.startswith("did:"):
                 did = BlueskyDID(account_identifier)
             else:
                 did = await resolve_handle_to_did(account_identifier)
 
+            logger.info(f"Resolved to DID: {did}")
+
             # Step 2: Resolve DID to PDS endpoint
             did_document = await resolve_did_document(did)
             pds_url = get_pds_endpoint(did_document)
 
+            logger.info(f"Using PDS: {pds_url}")
+
             # Step 3: Discover authorization server metadata
             auth_metadata = await discover_auth_server(pds_url)
+
+            logger.info(f"Using auth server: {auth_metadata.issuer}")
 
             # Step 4: Generate PKCE pair and DPoP keypair
             pkce_verifier, pkce_challenge = generate_pkce_pair()
@@ -164,11 +175,20 @@ class ATProtocolOAuthClient:
                 f"&request_uri={request_uri}"
             )
 
+            logger.info(f"Generated authorization URL for {did}")
             return auth_url
 
-        except BlueskyAuthError:
+        except BlueskyAuthError as e:
+            logger.error(
+                f"OAuth initiation failed for {account_identifier}: {str(e)}",
+                exc_info=True,
+            )
             raise
         except Exception as e:
+            logger.error(
+                f"OAuth initiation failed for {account_identifier}: {str(e)}",
+                exc_info=True,
+            )
             raise BlueskyAuthError(f"Failed to initiate authorization: {e}") from e
 
     async def complete_authorization(
@@ -197,13 +217,19 @@ class ATProtocolOAuthClient:
             BlueskyAuthError: If completion fails or verification fails
         """
         try:
+            logger.info(f"OAuth callback received from issuer: {iss}")
+
             # Step 1: Retrieve OAuth session
             session = await self._session_store.get(state)
             if not session:
+                logger.warning(f"OAuth callback with invalid/expired state: {state}")
                 raise BlueskyAuthError("Invalid or expired OAuth session")
 
             # Step 2: Verify issuer
             if iss != session.auth_server_issuer:
+                logger.error(
+                    f"Issuer mismatch: expected {session.auth_server_issuer}, got {iss}"
+                )
                 raise BlueskyAuthError(
                     f"Issuer mismatch: expected {session.auth_server_issuer}, got {iss}"
                 )
@@ -243,11 +269,16 @@ class ATProtocolOAuthClient:
             # Step 8: Clean up session (tokens discarded automatically)
             await self._session_store.delete(state)
 
+            logger.info(
+                f"OAuth login successful for {user_info.handle} (DID: {user_info.did})"
+            )
             return user_info
 
-        except BlueskyAuthError:
+        except BlueskyAuthError as e:
+            logger.error(f"OAuth callback failed: {str(e)}", exc_info=True)
             raise
         except Exception as e:
+            logger.error(f"OAuth callback failed: {str(e)}", exc_info=True)
             raise BlueskyAuthError(f"Failed to complete authorization: {e}") from e
 
     async def _make_par_request(

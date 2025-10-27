@@ -1,5 +1,6 @@
 """Login use case."""
 
+import logging
 from datetime import datetime
 from uuid import uuid4
 
@@ -11,6 +12,8 @@ from talk.domain.repository import UserRepository
 from talk.domain.service import AuthService, InviteService, JWTService
 from talk.domain.value import UserId
 from talk.domain.value.types import BlueskyDID, Handle
+
+logger = logging.getLogger(__name__)
 
 
 class LoginRequest(BaseModel):
@@ -88,6 +91,7 @@ class LoginUseCase:
         existing_user = await self.user_repository.find_by_bluesky_did(did)
 
         if existing_user:
+            logger.info(f"Existing user login: {handle} (user_id={existing_user.id})")
             # Update user handle/display name/avatar if changed
             user = User(
                 id=existing_user.id,
@@ -109,12 +113,18 @@ class LoginUseCase:
                 # Check if user has invite (required for new non-seed users)
                 has_invite = await self.invite_service.check_invite_exists(handle)
                 if not has_invite:
+                    logger.warning(
+                        f"Login rejected - no invite found for new user: {handle}"
+                    )
                     raise ValueError(
                         "No invite found. This platform is currently invite-only."
                     )
 
             # Create new user
             user_id = UserId(uuid4())
+            logger.info(
+                f"Creating new user: {handle} (seed_user={is_seed_user}, user_id={user_id})"
+            )
             user = User(
                 id=user_id,
                 bluesky_did=did,

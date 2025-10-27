@@ -14,11 +14,15 @@ from talk.interface.api.routes import (
     votes,
 )
 from talk.util.di.container import create_container, setup_di
+from talk.util.logging import setup_logging
 
 
 def create_app() -> FastAPI:
     """Create FastAPI application."""
     settings = Settings()
+
+    # Configure logging first
+    setup_logging(settings)
 
     app_instance = FastAPI(
         title="Science Talk API",

@@ -1,7 +1,11 @@
 """Authorization server metadata discovery for AT Protocol OAuth."""
 
+import logging
+
 import httpx
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class AuthServerMetadata(BaseModel):
@@ -57,6 +61,9 @@ async def discover_auth_server(pds_url: str) -> AuthServerMetadata:
 
         # If PDS doesn't have OAuth configured, fallback to bsky.social for Bluesky network users
         if response.status_code == 404 and "bsky.network" in pds_url:
+            logger.info(
+                f"PDS {pds_url} has no OAuth server, falling back to bsky.social"
+            )
             fallback_url = "https://bsky.social/.well-known/oauth-authorization-server"
             response = await client.get(fallback_url)
 
