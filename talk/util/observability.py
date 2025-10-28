@@ -62,10 +62,8 @@ def configure_logfire(settings: Settings) -> None:
             include_timestamps=True,
             verbose=settings.debug,
         ),
-        # Sampling: trace everything in development, sample in production
-        "sampling": logfire.SamplingOptions(
-            head=1.0 if settings.environment != "production" else 0.1
-        ),
+        # No sampling - log everything always
+        # We follow the observability quick-start guide and only instrument what matters
     }
 
     # Add token if provided
