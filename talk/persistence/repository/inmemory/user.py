@@ -46,3 +46,17 @@ class InMemoryUserRepository(UserRepository):
     async def delete(self, user_id: UserId) -> None:
         """Delete a user."""
         self._users.pop(user_id, None)
+
+    async def increment_karma(self, user_id: UserId) -> None:
+        """Atomically increment user's karma by 1."""
+        user = self._users.get(user_id)
+        if user:
+            updated_user = user.model_copy(update={"karma": user.karma + 1})
+            self._users[user_id] = updated_user
+
+    async def decrement_karma(self, user_id: UserId) -> None:
+        """Atomically decrement user's karma by 1 (minimum 0)."""
+        user = self._users.get(user_id)
+        if user:
+            updated_user = user.model_copy(update={"karma": max(0, user.karma - 1)})
+            self._users[user_id] = updated_user

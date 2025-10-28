@@ -12,6 +12,7 @@ from talk.domain.value import CommentId, PostId, UserId, VotableType, VoteId, Vo
 from .base import Service
 from .comment_service import CommentService
 from .post_service import PostService
+from .user_service import UserService
 
 
 class VoteService(Service):
@@ -22,6 +23,7 @@ class VoteService(Service):
         vote_repository: VoteRepository,
         post_service: PostService,
         comment_service: CommentService,
+        user_service: UserService,
     ) -> None:
         """Initialize vote service.
 
@@ -29,10 +31,12 @@ class VoteService(Service):
             vote_repository: Vote repository
             post_service: Post domain service
             comment_service: Comment domain service
+            user_service: User domain service
         """
         self.vote_repository = vote_repository
         self.post_service = post_service
         self.comment_service = comment_service
+        self.user_service = user_service
 
     async def upvote_post(self, post_id: PostId, user_id: UserId) -> Vote:
         """Upvote a post.
@@ -71,6 +75,9 @@ class VoteService(Service):
 
         # Atomically increment post points
         await self.post_service.increment_points(post_id)
+
+        # Increment post author's karma
+        await self.user_service.increment_karma(post.author_id)
 
         return saved_vote
 
@@ -112,6 +119,9 @@ class VoteService(Service):
         # Atomically increment comment points
         await self.comment_service.increment_points(comment_id)
 
+        # Increment comment author's karma
+        await self.user_service.increment_karma(comment.author_id)
+
         return saved_vote
 
     async def remove_vote_from_post(self, post_id: PostId, user_id: UserId) -> bool:
@@ -126,6 +136,11 @@ class VoteService(Service):
         Returns:
             True if vote was removed, False if no vote existed
         """
+        # Get post to find author before deleting vote
+        post = await self.post_service.get_post_by_id(post_id)
+        if not post:
+            return False
+
         # Delete vote
         deleted = await self.vote_repository.delete_by_user_and_votable(
             user_id=user_id,
@@ -136,6 +151,9 @@ class VoteService(Service):
         if deleted:
             # Atomically decrement post points
             await self.post_service.decrement_points(post_id)
+
+            # Decrement post author's karma
+            await self.user_service.decrement_karma(post.author_id)
 
         return deleted
 
@@ -153,6 +171,11 @@ class VoteService(Service):
         Returns:
             True if vote was removed, False if no vote existed
         """
+        # Get comment to find author before deleting vote
+        comment = await self.comment_service.get_comment_by_id(comment_id)
+        if not comment:
+            return False
+
         # Delete vote
         deleted = await self.vote_repository.delete_by_user_and_votable(
             user_id=user_id,
@@ -163,5 +186,8 @@ class VoteService(Service):
         if deleted:
             # Atomically decrement comment points
             await self.comment_service.decrement_points(comment_id)
+
+            # Decrement comment author's karma
+            await self.user_service.decrement_karma(comment.author_id)
 
         return deleted

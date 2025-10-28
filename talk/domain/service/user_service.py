@@ -38,3 +38,25 @@ class UserService:
             User if found, None otherwise
         """
         return await self.user_repository.find_by_handle(handle)
+
+    async def increment_karma(self, user_id: UserId) -> None:
+        """Atomically increment user's karma by 1.
+
+        Called when someone upvotes the user's post or comment.
+        Uses atomic database operation to avoid race conditions.
+
+        Args:
+            user_id: User ID
+        """
+        await self.user_repository.increment_karma(user_id)
+
+    async def decrement_karma(self, user_id: UserId) -> None:
+        """Atomically decrement user's karma by 1.
+
+        Called when someone removes their upvote from the user's post or comment.
+        Uses atomic database operation to avoid race conditions.
+
+        Args:
+            user_id: User ID
+        """
+        await self.user_repository.decrement_karma(user_id)

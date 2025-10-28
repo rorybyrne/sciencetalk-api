@@ -29,21 +29,30 @@ just prod health
 
 ## How It Works
 
-### Single Source of Truth: `terraform.tfvars`
+### Configuration Files
 
-You only edit **one file** for all configuration:
+You edit **two files** for all configuration:
 
+**`terraform.tfvars`** - Infrastructure configuration:
 ```hcl
 domain_name = "yourdomain.com"  # Required
 subdomain   = "talk"            # Optional (default: "talk")
 project_name = "talk"           # Optional (default: "talk")
 ```
 
+**`.env.secret`** - Optional secrets (API tokens, etc.):
+```bash
+# Copy from .env.secret.example
+cp deployment/prod/.env.secret.example deployment/prod/.env.secret
+# Edit with your secrets
+vim deployment/prod/.env.secret
+```
+
 Terraform automatically:
 - ✅ Generates database password (32 chars, PostgreSQL-safe)
 - ✅ Generates JWT secret (64 chars, high entropy)
 - ✅ Creates AWS infrastructure (database, container service, DNS)
-- ✅ Writes `.env` file with all configuration
+- ✅ Writes `.env` file merging: Terraform values + `.env.base` + `.env.secret`
 
 ### Generated `.env` File
 
@@ -61,16 +70,20 @@ export API__FRONTEND_URL="https://yourdomain.com"
 ### Configuration Flow
 
 ```
-terraform.tfvars (you edit)
-    ↓
-terraform apply
-    ↓
+terraform.tfvars (infrastructure config)
+         +
+.env.secret (optional API tokens)
+         +
+.env.base (static non-secret config)
+         ↓
+  terraform apply
+         ↓
 ├─ Creates AWS infrastructure
-├─ Generates secrets
-└─ Writes .env file
-    ↓
+├─ Generates secrets (DB password, JWT)
+└─ Writes .env file (merges all sources)
+         ↓
 Copy .env to GitHub ENV_FILE secret
-    ↓
+         ↓
 git push → GitHub Actions deploys
 ```
 
@@ -180,10 +193,15 @@ After `terraform apply`, add **3 secrets** to GitHub:
 | File | Contains | Protected By |
 |------|----------|--------------|
 | `terraform.tfvars` | Your domain config | `.gitignore` |
-| `.env` | All secrets | `.gitignore`, file permissions 0600 |
+| `.env.secret` | API tokens and secrets | `.gitignore` |
+| `.env` | All secrets (auto-generated) | `.gitignore`, file permissions 0600 |
 | `terraform.tfstate` | Infrastructure state + secrets | `.gitignore` |
 
 **Never commit** these files to git!
+
+**Safe to commit:**
+- `.env.base` - Static non-secret configuration (like invitation settings)
+- `.env.secret.example` - Template showing what secrets can be configured
 
 ### Secret Storage
 

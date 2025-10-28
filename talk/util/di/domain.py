@@ -60,12 +60,14 @@ class ProdDomainProvider(ProviderBase):
         vote_repository: VoteRepository,
         post_service: PostService,
         comment_service: CommentService,
+        user_service: UserService,
     ) -> VoteService:
         """Provide vote domain service."""
         return VoteService(
             vote_repository=vote_repository,
             post_service=post_service,
             comment_service=comment_service,
+            user_service=user_service,
         )
 
     @provide

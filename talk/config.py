@@ -48,6 +48,18 @@ class APISettings(BaseModel):
     base_url: str = "http://localhost:8000"  # Base URL for OAuth client metadata (HTTPS in production)
 
 
+class ObservabilitySettings(BaseModel):
+    """Observability configuration for Logfire."""
+
+    # Logfire API token (optional - if not set, logs only go to console)
+    # Can be set via OBSERVABILITY__LOGFIRE_TOKEN env var
+    logfire_token: str | None = None
+
+    # Whether to send telemetry to Logfire cloud
+    # If None, will auto-determine: sends if token is present, otherwise console-only
+    send_to_logfire: bool | None = None
+
+
 class Settings(BaseSettings):
     """Application settings."""
 
@@ -66,6 +78,7 @@ class Settings(BaseSettings):
     auth: AuthSettings = AuthSettings()
     api: APISettings = APISettings()
     invitations: InvitationSettings = InvitationSettings()
+    observability: ObservabilitySettings = ObservabilitySettings()
 
     @property
     def database_url(self) -> str:

@@ -63,13 +63,16 @@ output "env_file_content" {
     debug       = "false"
 
     # AWS Configuration (for GitHub Actions)
-    aws_region          = var.aws_region
-    lightsail_service   = var.project_name
-    custom_domain       = "${var.subdomain}.${var.domain_name}"
-    certificate_name    = "${var.project_name}-cert"
+    aws_region        = var.aws_region
+    lightsail_service = var.project_name
+    custom_domain     = "${var.subdomain}.${var.domain_name}"
+    certificate_name  = "${var.project_name}-cert"
 
     # Static configuration from .env.base
     env_base_content = file("${path.module}/../.env.base")
+
+    # Secret configuration from .env.secret (if exists)
+    env_secret_content = fileexists("${path.module}/../.env.secret") ? file("${path.module}/../.env.secret") : ""
   })
   sensitive = true
 }

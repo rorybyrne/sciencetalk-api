@@ -22,6 +22,7 @@ from talk.persistence.repository import (
     PostgresVoteRepository,
 )
 from talk.util.di.base import ProviderBase
+from talk.util.observability import instrument_sqlalchemy
 
 
 class PersistenceProvider(ProviderBase):
@@ -40,7 +41,10 @@ class ProdPersistenceProvider(PersistenceProvider):
     @provide(scope=Scope.APP)
     def get_engine(self, settings: Settings) -> AsyncEngine:
         """Provide database engine."""
-        return create_engine(settings)
+        engine = create_engine(settings)
+        # Instrument SQLAlchemy for observability
+        instrument_sqlalchemy(engine)
+        return engine
 
     @provide(scope=Scope.APP)
     def get_session_factory(

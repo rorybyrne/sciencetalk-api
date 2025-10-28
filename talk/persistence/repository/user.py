@@ -74,3 +74,27 @@ class PostgresUserRepository(UserRepository):
         )
         result = await self.session.execute(stmt)
         return result.first() is not None
+
+    async def increment_karma(self, user_id: UserId) -> None:
+        """Atomically increment user's karma by 1."""
+        stmt = (
+            users_table.update()
+            .where(users_table.c.id == user_id)
+            .values(karma=users_table.c.karma + 1)
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+
+    async def decrement_karma(self, user_id: UserId) -> None:
+        """Atomically decrement user's karma by 1 (minimum 0)."""
+        from sqlalchemy import case
+
+        stmt = (
+            users_table.update()
+            .where(users_table.c.id == user_id)
+            .values(
+                karma=case((users_table.c.karma > 0, users_table.c.karma - 1), else_=0)
+            )
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()

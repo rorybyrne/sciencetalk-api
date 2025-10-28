@@ -15,21 +15,31 @@ from talk.interface.api.routes import (
     votes,
 )
 from talk.util.di.container import create_container, setup_di
-from talk.util.logging import setup_logging
+from talk.util.observability import (
+    configure_logfire,
+    instrument_fastapi,
+    instrument_httpx,
+)
 
 
 def create_app() -> FastAPI:
     """Create FastAPI application."""
     settings = Settings()
 
-    # Configure logging first
-    setup_logging(settings)
+    # Configure observability (Logfire) first
+    configure_logfire(settings)
+
+    # Instrument httpx for outbound HTTP requests
+    instrument_httpx()
 
     app_instance = FastAPI(
         title="Science Talk API",
         description="Backend API for Science Talk - a forum for sharing scientific results, methods, tools, and discussions",
         version="0.1.0",
     )
+
+    # Instrument FastAPI for automatic tracing of HTTP requests
+    instrument_fastapi(app_instance)
 
     # Setup CORS middleware
     app_instance.add_middleware(

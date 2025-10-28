@@ -4,6 +4,7 @@
 # The .env file merges:
 #   - Dynamic values from Terraform (database URL, secrets)
 #   - Static values from .env.base (invitations, feature flags, etc.)
+#   - Secret values from .env.secret (API tokens, optional)
 
 # Generate .env file automatically
 resource "local_file" "env" {
@@ -25,13 +26,16 @@ resource "local_file" "env" {
     debug       = "false"
 
     # AWS Configuration (for GitHub Actions)
-    aws_region          = var.aws_region
-    lightsail_service   = var.project_name
-    custom_domain       = "${var.subdomain}.${var.domain_name}"
-    certificate_name    = "${var.project_name}-cert"
+    aws_region        = var.aws_region
+    lightsail_service = var.project_name
+    custom_domain     = "${var.subdomain}.${var.domain_name}"
+    certificate_name  = "${var.project_name}-cert"
 
     # Static configuration from .env.base
     env_base_content = file("${path.module}/../.env.base")
+
+    # Secret configuration from .env.secret (if exists)
+    env_secret_content = fileexists("${path.module}/../.env.secret") ? file("${path.module}/../.env.secret") : ""
   })
 
   # Ensure file has restrictive permissions (readable only by owner)

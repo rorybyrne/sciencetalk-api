@@ -73,3 +73,21 @@ class UserRepository(ABC):
             True if a user exists, False otherwise
         """
         pass
+
+    @abstractmethod
+    async def increment_karma(self, user_id: UserId) -> None:
+        """Atomically increment user's karma by 1.
+
+        Args:
+            user_id: The user's unique identifier
+        """
+        pass
+
+    @abstractmethod
+    async def decrement_karma(self, user_id: UserId) -> None:
+        """Atomically decrement user's karma by 1 (minimum 0).
+
+        Args:
+            user_id: The user's unique identifier
+        """
+        pass
