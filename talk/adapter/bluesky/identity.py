@@ -1,8 +1,9 @@
 """Identity resolution for AT Protocol (handle to DID, DID to PDS)."""
 
-import httpx
-from pydantic import BaseModel
 import dns.resolver
+import httpx
+import logfire
+from pydantic import BaseModel
 
 from talk.domain.value.types import BlueskyDID
 
@@ -48,31 +49,36 @@ async def resolve_handle_to_did(handle: str) -> BlueskyDID:
     # Remove @ prefix if present
     handle = handle.lstrip("@")
 
-    # Try DNS TXT record first (recommended method)
-    try:
-        did_str = _resolve_handle_via_dns(handle)
-        if did_str:
-            return BlueskyDID(did_str)
-    except Exception:
-        # DNS resolution failed, try HTTPS
-        pass
+    with logfire.span("resolve_handle_to_did", handle=handle):
+        # Try DNS TXT record first (recommended method)
+        try:
+            did_str = _resolve_handle_via_dns(handle)
+            if did_str:
+                return BlueskyDID(did_str)
+        except Exception:
+            # DNS resolution failed, try HTTPS
+            pass
 
-    # Fall back to HTTPS well-known endpoint
-    try:
-        did_str = await _resolve_handle_via_https(handle)
-        return BlueskyDID(did_str)
-    except IdentityResolutionError:
-        raise
-    except ValueError as e:
-        # BlueskyDID validation error
-        raise IdentityResolutionError(
-            f"Invalid DID format from {handle}: {str(e)}"
-        ) from e
-    except Exception as e:
-        # Both methods failed
-        raise IdentityResolutionError(
-            f"Failed to resolve handle {handle}: {str(e)}"
-        ) from e
+        # Fall back to HTTPS well-known endpoint
+        logfire.info("DNS resolution failed, trying HTTPS", handle=handle)
+
+        try:
+            did_str = await _resolve_handle_via_https(handle)
+            return BlueskyDID(did_str)
+        except IdentityResolutionError:
+            raise
+        except ValueError as e:
+            # BlueskyDID validation error
+            logfire.error("Invalid DID format", handle=handle, error=str(e))
+            raise IdentityResolutionError(
+                f"Invalid DID format from {handle}: {str(e)}"
+            ) from e
+        except Exception as e:
+            # Both methods failed
+            logfire.error("Handle resolution failed", handle=handle, error=str(e))
+            raise IdentityResolutionError(
+                f"Failed to resolve handle {handle}: {str(e)}"
+            ) from e
 
 
 def _resolve_handle_via_dns(handle: str) -> str | None:

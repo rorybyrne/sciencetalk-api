@@ -3,6 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
+import logfire
 from sqlalchemy.exc import IntegrityError
 
 from talk.domain.model.vote import Vote
@@ -53,33 +54,38 @@ class VoteService(Service):
         Raises:
             ValueError: If user already voted or post not found
         """
-        # Check if post exists
-        post = await self.post_service.get_post_by_id(post_id)
-        if not post:
-            raise ValueError("Post not found")
+        with logfire.span("upvote_post", post_id=str(post_id), user_id=str(user_id)):
+            # Check if post exists
+            post = await self.post_service.get_post_by_id(post_id)
+            if not post:
+                logfire.warn("Vote on non-existent post", post_id=str(post_id))
+                raise ValueError("Post not found")
 
-        # Create vote (will raise IntegrityError if duplicate)
-        vote = Vote(
-            id=VoteId(uuid4()),
-            user_id=user_id,
-            votable_type=VotableType.POST,
-            votable_id=UUID(str(post_id)),
-            vote_type=VoteType.UP,
-            created_at=datetime.now(),
-        )
+            # Create vote (will raise IntegrityError if duplicate)
+            vote = Vote(
+                id=VoteId(uuid4()),
+                user_id=user_id,
+                votable_type=VotableType.POST,
+                votable_id=UUID(str(post_id)),
+                vote_type=VoteType.UP,
+                created_at=datetime.now(),
+            )
 
-        try:
-            saved_vote = await self.vote_repository.save(vote)
-        except IntegrityError:
-            raise ValueError("Already voted on this post")
+            try:
+                saved_vote = await self.vote_repository.save(vote)
+            except IntegrityError:
+                logfire.warn(
+                    "Duplicate vote attempt", user_id=str(user_id), post_id=str(post_id)
+                )
+                raise ValueError("Already voted on this post")
 
-        # Atomically increment post points
-        await self.post_service.increment_points(post_id)
+            # Atomically increment post points
+            await self.post_service.increment_points(post_id)
 
-        # Increment post author's karma
-        await self.user_service.increment_karma(post.author_id)
+            # Increment post author's karma
+            await self.user_service.increment_karma(post.author_id)
 
-        return saved_vote
+            return saved_vote
 
     async def upvote_comment(self, comment_id: CommentId, user_id: UserId) -> Vote:
         """Upvote a comment.
@@ -96,33 +102,42 @@ class VoteService(Service):
         Raises:
             ValueError: If user already voted or comment not found
         """
-        # Check if comment exists
-        comment = await self.comment_service.get_comment_by_id(comment_id)
-        if not comment:
-            raise ValueError("Comment not found")
+        with logfire.span(
+            "upvote_comment", comment_id=str(comment_id), user_id=str(user_id)
+        ):
+            # Check if comment exists
+            comment = await self.comment_service.get_comment_by_id(comment_id)
+            if not comment:
+                logfire.warn("Vote on non-existent comment", comment_id=str(comment_id))
+                raise ValueError("Comment not found")
 
-        # Create vote (will raise IntegrityError if duplicate)
-        vote = Vote(
-            id=VoteId(uuid4()),
-            user_id=user_id,
-            votable_type=VotableType.COMMENT,
-            votable_id=UUID(str(comment_id)),
-            vote_type=VoteType.UP,
-            created_at=datetime.now(),
-        )
+            # Create vote (will raise IntegrityError if duplicate)
+            vote = Vote(
+                id=VoteId(uuid4()),
+                user_id=user_id,
+                votable_type=VotableType.COMMENT,
+                votable_id=UUID(str(comment_id)),
+                vote_type=VoteType.UP,
+                created_at=datetime.now(),
+            )
 
-        try:
-            saved_vote = await self.vote_repository.save(vote)
-        except IntegrityError:
-            raise ValueError("Already voted on this comment")
+            try:
+                saved_vote = await self.vote_repository.save(vote)
+            except IntegrityError:
+                logfire.warn(
+                    "Duplicate vote attempt",
+                    user_id=str(user_id),
+                    comment_id=str(comment_id),
+                )
+                raise ValueError("Already voted on this comment")
 
-        # Atomically increment comment points
-        await self.comment_service.increment_points(comment_id)
+            # Atomically increment comment points
+            await self.comment_service.increment_points(comment_id)
 
-        # Increment comment author's karma
-        await self.user_service.increment_karma(comment.author_id)
+            # Increment comment author's karma
+            await self.user_service.increment_karma(comment.author_id)
 
-        return saved_vote
+            return saved_vote
 
     async def remove_vote_from_post(self, post_id: PostId, user_id: UserId) -> bool:
         """Remove a vote from a post.

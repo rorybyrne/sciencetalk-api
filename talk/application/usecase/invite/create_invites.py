@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+import logfire
 from pydantic import BaseModel, Field
 
 from talk.application.usecase.base import BaseUseCase
@@ -74,64 +75,75 @@ class CreateInvitesUseCase(BaseUseCase):
 
         inviter_id = UserId(UUID(request.inviter_id))
 
-        # Get inviter
-        inviter = await self.user_service.get_user_by_id(inviter_id)
-        if not inviter:
-            raise ValueError("User not found")
+        with logfire.span(
+            "create_invites",
+            inviter_handle=request.inviter_handle,
+            invite_count=len(request.invitee_handles),
+        ):
+            # Get inviter
+            inviter = await self.user_service.get_user_by_id(inviter_id)
+            if not inviter:
+                raise ValueError("User not found")
 
-        # Check if user has unlimited invites
-        has_unlimited_invites = (
-            inviter.handle in self.settings.invitations.unlimited_inviters
-        )
+            # Check if user has unlimited invites
+            has_unlimited_invites = (
+                inviter.handle in self.settings.invitations.unlimited_inviters
+            )
 
-        # Check quota (unless user has unlimited invites)
-        if not has_unlimited_invites:
-            available_quota = await self.invite_service.get_available_quota(
+            # Check quota (unless user has unlimited invites)
+            if not has_unlimited_invites:
+                available_quota = await self.invite_service.get_available_quota(
+                    inviter.invite_quota, inviter_id
+                )
+
+                if len(request.invitee_handles) > available_quota:
+                    logfire.warn(
+                        "Invite quota exceeded",
+                        inviter_handle=request.inviter_handle,
+                        requested=len(request.invitee_handles),
+                        available=available_quota,
+                    )
+                    raise ValueError(
+                        f"Insufficient invite quota. Available: {available_quota}, Requested: {len(request.invitee_handles)}"
+                    )
+
+            # Create invites
+            created_invites = []
+            failed_handles = []
+
+            for handle_str in request.invitee_handles:
+                try:
+                    # Validate handle format
+                    handle = Handle(root=handle_str)
+
+                    # Create invite
+                    invite = await self.invite_service.create_invite(inviter_id, handle)
+                    created_invites.append(invite)
+
+                except Exception:
+                    # Handle validation error or duplicate invite
+                    failed_handles.append(handle_str)
+
+            # Calculate remaining quota after creating invites
+            remaining_quota = await self.invite_service.get_available_quota(
                 inviter.invite_quota, inviter_id
             )
 
-            if len(request.invitee_handles) > available_quota:
-                raise ValueError(
-                    f"Insufficient invite quota. Available: {available_quota}, Requested: {len(request.invitee_handles)}"
+            # Convert invites to response items
+            invite_items = [
+                InviteItem(
+                    invite_id=str(invite.id),
+                    inviter_handle=request.inviter_handle,
+                    invitee_handle=str(invite.invitee_handle),
+                    status=invite.status,
+                    created_at=invite.created_at,
+                    accepted_at=invite.accepted_at,
                 )
+                for invite in created_invites
+            ]
 
-        # Create invites
-        created_invites = []
-        failed_handles = []
-
-        for handle_str in request.invitee_handles:
-            try:
-                # Validate handle format
-                handle = Handle(root=handle_str)
-
-                # Create invite
-                invite = await self.invite_service.create_invite(inviter_id, handle)
-                created_invites.append(invite)
-
-            except Exception:
-                # Handle validation error or duplicate invite
-                failed_handles.append(handle_str)
-
-        # Calculate remaining quota after creating invites
-        remaining_quota = await self.invite_service.get_available_quota(
-            inviter.invite_quota, inviter_id
-        )
-
-        # Convert invites to response items
-        invite_items = [
-            InviteItem(
-                invite_id=str(invite.id),
-                inviter_handle=request.inviter_handle,
-                invitee_handle=str(invite.invitee_handle),
-                status=invite.status,
-                created_at=invite.created_at,
-                accepted_at=invite.accepted_at,
+            return CreateInvitesResponse(
+                invites=invite_items,
+                failed_handles=failed_handles,
+                remaining_quota=remaining_quota,
             )
-            for invite in created_invites
-        ]
-
-        return CreateInvitesResponse(
-            invites=invite_items,
-            failed_handles=failed_handles,
-            remaining_quota=remaining_quota,
-        )
