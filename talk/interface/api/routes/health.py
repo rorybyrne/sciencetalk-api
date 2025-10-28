@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 
@@ -17,6 +17,15 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class CORSDebugResponse(BaseModel):
+    """CORS debugging information."""
+
+    origin: str | None
+    allowed_origins: list[str]
+    cors_enabled: bool
+    headers: dict[str, str]
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Basic health check endpoint.
@@ -28,4 +37,29 @@ async def health_check() -> HealthResponse:
         status="healthy",
         timestamp=datetime.now(),
         version="0.1.0",
+    )
+
+
+@router.get("/health/cors", response_model=CORSDebugResponse)
+async def cors_debug(request: Request) -> CORSDebugResponse:
+    """Debug CORS configuration.
+
+    Useful for troubleshooting CORS issues, especially in Safari.
+
+    Returns:
+        CORS configuration details and request headers
+    """
+    from talk.config import Settings
+
+    settings = Settings()
+
+    return CORSDebugResponse(
+        origin=request.headers.get("origin"),
+        allowed_origins=[
+            settings.api.frontend_url,
+            "http://localhost:3000",
+            "http://localhost:5173",
+        ],
+        cors_enabled=True,
+        headers=dict(request.headers),
     )

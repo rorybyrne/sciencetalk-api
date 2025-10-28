@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
     instrument_fastapi(app_instance)
 
     # Setup CORS middleware
+    # Safari is stricter with CORS - need explicit configuration
     app_instance.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -50,8 +51,19 @@ def create_app() -> FastAPI:
             "http://localhost:5173",  # Vite default
         ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "User-Agent",
+            "DNT",
+            "Cache-Control",
+            "X-Requested-With",
+        ],
+        expose_headers=["Content-Length", "Content-Type"],
+        max_age=600,  # Cache preflight requests for 10 minutes
     )
 
     # Setup dependency injection
