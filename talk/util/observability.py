@@ -86,7 +86,7 @@ def instrument_fastapi(app: FastAPI) -> None:
     """Instrument FastAPI application with Logfire.
 
     Automatically traces:
-    - All HTTP requests/responses
+    - All HTTP requests/responses (except health checks)
     - Request duration
     - Errors and exceptions
     - Request metadata (method, path, client)
@@ -117,6 +117,7 @@ def instrument_fastapi(app: FastAPI) -> None:
         app,
         capture_headers=True,
         request_attributes_mapper=_map_request_attributes,
+        excluded_urls=["/health", "/health/cors"],  # Exclude noisy health checks
     )
     logfire.info("FastAPI instrumented")
 
