@@ -5,6 +5,10 @@ from datetime import datetime
 import logfire
 from pydantic import BaseModel, Field
 
+from talk.adapter.bluesky.identity import (
+    IdentityResolutionError,
+    resolve_handle_to_did,
+)
 from talk.application.usecase.base import BaseUseCase
 from talk.config import Settings
 from talk.domain.service import InviteService, UserService
@@ -26,6 +30,7 @@ class InviteItem(BaseModel):
     invite_id: str
     inviter_handle: str
     invitee_handle: str
+    invitee_did: str  # Resolved DID
     status: InviteStatus
     created_at: datetime
     accepted_at: datetime | None = None
@@ -116,12 +121,25 @@ class CreateInvitesUseCase(BaseUseCase):
                     # Validate handle format
                     handle = Handle(root=handle_str)
 
-                    # Create invite
-                    invite = await self.invite_service.create_invite(inviter_id, handle)
+                    # Resolve handle to DID first
+                    did = await resolve_handle_to_did(str(handle))
+
+                    # Create invite with both handle and DID
+                    invite = await self.invite_service.create_invite(
+                        inviter_id, handle, did
+                    )
                     created_invites.append(invite)
 
+                except (IdentityResolutionError, ValueError):
+                    # Handle resolution failed or duplicate invite
+                    failed_handles.append(handle_str)
+                    logfire.warn(
+                        "Failed to create invite",
+                        handle=handle_str,
+                        inviter_handle=request.inviter_handle,
+                    )
                 except Exception:
-                    # Handle validation error or duplicate invite
+                    # Other errors (handle validation, etc.)
                     failed_handles.append(handle_str)
 
             # Calculate remaining quota after creating invites
@@ -135,6 +153,7 @@ class CreateInvitesUseCase(BaseUseCase):
                     invite_id=str(invite.id),
                     inviter_handle=request.inviter_handle,
                     invitee_handle=str(invite.invitee_handle),
+                    invitee_did=str(invite.invitee_did),
                     status=invite.status,
                     created_at=invite.created_at,
                     accepted_at=invite.accepted_at,

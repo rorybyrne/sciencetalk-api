@@ -112,8 +112,9 @@ class LoginUseCase:
                 is_seed_user = handle in self.settings.invitations.unlimited_inviters
 
                 if not is_seed_user:
-                    # Check if user has invite (required for new non-seed users)
-                    has_invite = await self.invite_service.check_invite_exists(handle)
+                    # Check if user has invite by DID (required for new non-seed users)
+                    # DID is the primary matching identifier (handles can change)
+                    has_invite = await self.invite_service.check_invite_exists(did)
                     if not has_invite:
                         logfire.warn(
                             "Login rejected - no invite",
@@ -147,9 +148,9 @@ class LoginUseCase:
                     is_seed_user=is_seed_user,
                 )
 
-                # Mark invite as accepted (only if not a seed user)
+                # Mark invite as accepted by DID (only if not a seed user)
                 if not is_seed_user:
-                    await self.invite_service.accept_invite(handle, user_id)
+                    await self.invite_service.accept_invite(did, user_id)
 
             # Generate JWT token
             token = self.jwt_service.create_token(

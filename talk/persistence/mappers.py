@@ -199,6 +199,7 @@ def row_to_invite(row: Dict[str, Any]) -> Invite:
             else row["inviter_id"]
         ),
         invitee_handle=Handle(root=row["invitee_handle"]),
+        invitee_did=BlueskyDID(row["invitee_did"]),
         status=InviteStatus(row["status"]),
         created_at=row["created_at"],
         accepted_at=row.get("accepted_at"),

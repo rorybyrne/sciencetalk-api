@@ -35,7 +35,7 @@ async def clean_database(integration_env):
 
     # Truncate all tables (CASCADE removes foreign key constraints)
     await session.execute(
-        text("TRUNCATE TABLE votes, comments, posts, invites, users CASCADE")
+        text("TRUNCATE TABLE comments, votes, posts, invites, users CASCADE")
     )
     await session.commit()
 
@@ -78,7 +78,10 @@ class TestLoginIntegration:
 
         # Inviter creates an invite for new user (MockBlueskyAuthClient returns "user.bsky.social")
         new_user_handle = Handle(root="user.bsky.social")
-        created_invite = await invite_service.create_invite(inviter_id, new_user_handle)
+        new_user_did = BlueskyDID("did:plc:mock123")
+        created_invite = await invite_service.create_invite(
+            inviter_id, new_user_handle, new_user_did
+        )
 
         # Verify invite was saved to database
         invite_repo = await integration_env.get(InviteRepository)
@@ -114,7 +117,7 @@ class TestLoginIntegration:
         assert updated_invite.accepted_at is not None
 
         # Verify no pending invite remains (login check should fail for second attempt)
-        has_pending = await invite_service.check_invite_exists(new_user_handle)
+        has_pending = await invite_service.check_invite_exists(new_user_did)
         assert has_pending is False
 
     @pytest.mark.asyncio

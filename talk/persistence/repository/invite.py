@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from talk.domain.model import Invite
 from talk.domain.repository import InviteRepository
 from talk.domain.value import InviteId, InviteStatus, UserId
-from talk.domain.value.types import Handle
+from talk.domain.value.types import BlueskyDID
 from talk.persistence.mappers import invite_to_dict, row_to_invite
 from talk.persistence.tables import invites_table
 
@@ -29,14 +29,15 @@ class PostgresInviteRepository(InviteRepository):
         row = result.fetchone()
         return row_to_invite(row._asdict()) if row else None
 
-    async def find_pending_by_handle(self, handle: Handle) -> Invite | None:
-        """Find a pending invite by handle.
+    async def find_pending_by_did(self, did: BlueskyDID) -> Invite | None:
+        """Find a pending invite by DID.
 
         Critical path for login check - indexed for performance.
+        DID is the primary matching identifier (handles can change).
         """
         stmt = select(invites_table).where(
             and_(
-                invites_table.c.invitee_handle == handle.root,
+                invites_table.c.invitee_did == str(did),
                 invites_table.c.status == InviteStatus.PENDING.value,
             )
         )

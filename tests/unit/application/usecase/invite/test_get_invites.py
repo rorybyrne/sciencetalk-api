@@ -43,10 +43,11 @@ class TestGetInvitesUseCase:
         invite_service: InviteService,
         inviter_id: UserId,
         invitee_handle: str,
+        invitee_did: str = "did:plc:default",
     ) -> Invite:
         """Helper to create an invite."""
         return await invite_service.create_invite(
-            inviter_id, Handle(root=invitee_handle)
+            inviter_id, Handle(root=invitee_handle), BlueskyDID(invitee_did)
         )
 
     @pytest.mark.asyncio
@@ -83,9 +84,15 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
         # Create some invites
-        await self._create_invite(invite_service, user.id, "friend1.bsky.social")
-        await self._create_invite(invite_service, user.id, "friend2.bsky.social")
-        await self._create_invite(invite_service, user.id, "friend3.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "friend1.bsky.social", "did:plc:friend1"
+        )
+        await self._create_invite(
+            invite_service, user.id, "friend2.bsky.social", "did:plc:friend2"
+        )
+        await self._create_invite(
+            invite_service, user.id, "friend3.bsky.social", "did:plc:friend3"
+        )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -118,16 +125,20 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
         # Create pending invites
-        await self._create_invite(invite_service, user.id, "pending1.bsky.social")
-        await self._create_invite(invite_service, user.id, "pending2.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "pending1.bsky.social", "did:plc:pending1"
+        )
+        await self._create_invite(
+            invite_service, user.id, "pending2.bsky.social", "did:plc:pending2"
+        )
 
         # Create an accepted invite
-        await self._create_invite(invite_service, user.id, "accepted.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "accepted.bsky.social", "did:plc:accepted"
+        )
         # Create a new user to accept the invite
         new_user = await self._create_test_user(user_repo, "accepted.bsky.social")
-        await invite_service.accept_invite(
-            Handle(root="accepted.bsky.social"), new_user.id
-        )
+        await invite_service.accept_invite(BlueskyDID("did:plc:accepted"), new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -157,16 +168,25 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
         # Create pending invite
-        await self._create_invite(invite_service, user.id, "pending.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "pending.bsky.social", "did:plc:pending"
+        )
 
         # Create accepted invites
-        await self._create_invite(invite_service, user.id, "accepted1.bsky.social")
-        await self._create_invite(invite_service, user.id, "accepted2.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "accepted1.bsky.social", "did:plc:accepted1"
+        )
+        await self._create_invite(
+            invite_service, user.id, "accepted2.bsky.social", "did:plc:accepted2"
+        )
 
         # Accept the invites
-        for handle in ["accepted1.bsky.social", "accepted2.bsky.social"]:
+        for handle, did in [
+            ("accepted1.bsky.social", "did:plc:accepted1"),
+            ("accepted2.bsky.social", "did:plc:accepted2"),
+        ]:
             new_user = await self._create_test_user(user_repo, handle)
-            await invite_service.accept_invite(Handle(root=handle), new_user.id)
+            await invite_service.accept_invite(BlueskyDID(did), new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -200,7 +220,9 @@ class TestGetInvitesUseCase:
 
         # Create 10 invites
         for i in range(10):
-            await self._create_invite(invite_service, user.id, f"friend{i}.bsky.social")
+            await self._create_invite(
+                invite_service, user.id, f"friend{i}.bsky.social", f"did:plc:friend{i}"
+            )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -227,7 +249,10 @@ class TestGetInvitesUseCase:
         # Create invites with predictable handles
         for i in range(10):
             await self._create_invite(
-                invite_service, user.id, f"friend{i:02d}.bsky.social"
+                invite_service,
+                user.id,
+                f"friend{i:02d}.bsky.social",
+                f"did:plc:friend{i:02d}",
             )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
@@ -264,11 +289,11 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
         # Create and accept an invite
-        await self._create_invite(invite_service, user.id, "friend.bsky.social")
-        new_user = await self._create_test_user(user_repo, "friend.bsky.social")
-        await invite_service.accept_invite(
-            Handle(root="friend.bsky.social"), new_user.id
+        await self._create_invite(
+            invite_service, user.id, "friend.bsky.social", "did:plc:friend"
         )
+        new_user = await self._create_test_user(user_repo, "friend.bsky.social")
+        await invite_service.accept_invite(BlueskyDID("did:plc:friend"), new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -298,7 +323,9 @@ class TestGetInvitesUseCase:
         invite_service = await unit_env.get(InviteService)
 
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
-        await self._create_invite(invite_service, user.id, "pending.bsky.social")
+        await self._create_invite(
+            invite_service, user.id, "pending.bsky.social", "did:plc:pending"
+        )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
@@ -343,11 +370,17 @@ class TestGetInvitesUseCase:
         user2 = await self._create_test_user(user_repo, "user2.bsky.social")
 
         # User 1 creates invites
-        await self._create_invite(invite_service, user1.id, "user1friend1.bsky.social")
-        await self._create_invite(invite_service, user1.id, "user1friend2.bsky.social")
+        await self._create_invite(
+            invite_service, user1.id, "user1friend1.bsky.social", "did:plc:user1friend1"
+        )
+        await self._create_invite(
+            invite_service, user1.id, "user1friend2.bsky.social", "did:plc:user1friend2"
+        )
 
         # User 2 creates invites
-        await self._create_invite(invite_service, user2.id, "user2friend1.bsky.social")
+        await self._create_invite(
+            invite_service, user2.id, "user2friend1.bsky.social", "did:plc:user2friend1"
+        )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(

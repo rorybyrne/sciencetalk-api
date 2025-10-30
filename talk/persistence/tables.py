@@ -174,6 +174,7 @@ invites_table = Table(
         "inviter_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     ),
     Column("invitee_handle", String(255), nullable=False),
+    Column("invitee_did", String(255), nullable=False),  # Resolved DID
     Column(
         "status",
         Enum("pending", "accepted", name="invite_status", create_type=False),
@@ -192,19 +193,19 @@ invites_table = Table(
     ),
 )
 
-# Critical index for login check - must be fast
+# Critical index for login check - must be fast (DID is primary matching)
 Index(
-    "idx_invites_invitee_handle_status",
-    invites_table.c.invitee_handle,
+    "idx_invites_invitee_did_status",
+    invites_table.c.invitee_did,
     invites_table.c.status,
 )
 Index("idx_invites_inviter_id", invites_table.c.inviter_id)
 
-# Partial unique constraint: only one pending invite per handle
+# Partial unique constraint: only one pending invite per DID
 # Note: This will be created in migration with: CREATE UNIQUE INDEX ... WHERE status = 'pending'
 Index(
-    "idx_invites_unique_pending_handle",
-    invites_table.c.invitee_handle,
+    "idx_invites_unique_pending_did",
+    invites_table.c.invitee_did,
     unique=True,
     postgresql_where=invites_table.c.status == "pending",
 )

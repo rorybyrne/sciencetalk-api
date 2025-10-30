@@ -1,6 +1,7 @@
 """Unit tests for CreateInvitesUseCase."""
 
 from datetime import datetime
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -18,6 +19,14 @@ from tests.harness import create_env_fixture
 
 # Unit test fixture
 unit_env = create_env_fixture()
+
+
+# Mock DID resolver to return deterministic DIDs based on handle
+def mock_resolve_handle_to_did(handle: str) -> BlueskyDID:
+    """Mock that returns deterministic DIDs for testing."""
+    # Create a deterministic DID based on the handle
+    handle_hash = hash(handle) % 1000000
+    return BlueskyDID(f"did:plc:test{handle_hash:06d}")
 
 
 class TestCreateInvitesUseCase:
@@ -41,7 +50,11 @@ class TestCreateInvitesUseCase:
         return await user_repo.save(user)
 
     @pytest.mark.asyncio
-    async def test_create_invites_success(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_success(self, mock_resolve, unit_env):
         """Should create multiple invites when quota available."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -71,7 +84,13 @@ class TestCreateInvitesUseCase:
         assert pending_count == 2
 
     @pytest.mark.asyncio
-    async def test_create_invites_exceeds_quota_raises_error(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_exceeds_quota_raises_error(
+        self, mock_resolve, unit_env
+    ):
         """Should raise error when requested invites exceed available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -85,9 +104,15 @@ class TestCreateInvitesUseCase:
         )
 
         # Use up 3 of the quota
-        await invite_service.create_invite(user.id, Handle(root="used1.bsky.social"))
-        await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
-        await invite_service.create_invite(user.id, Handle(root="used3.bsky.social"))
+        await invite_service.create_invite(
+            user.id, Handle(root="used1.bsky.social"), BlueskyDID("did:plc:used1")
+        )
+        await invite_service.create_invite(
+            user.id, Handle(root="used2.bsky.social"), BlueskyDID("did:plc:used2")
+        )
+        await invite_service.create_invite(
+            user.id, Handle(root="used3.bsky.social"), BlueskyDID("did:plc:used3")
+        )
 
         use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
@@ -107,7 +132,13 @@ class TestCreateInvitesUseCase:
             await use_case.execute(request)
 
     @pytest.mark.asyncio
-    async def test_create_invites_with_unlimited_inviter_bypasses_quota(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_with_unlimited_inviter_bypasses_quota(
+        self, mock_resolve, unit_env
+    ):
         """Unlimited inviters should bypass quota restrictions."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -122,7 +153,9 @@ class TestCreateInvitesUseCase:
         # Use up all quota
         for i in range(5):
             await invite_service.create_invite(
-                user.id, Handle(root=f"used{i}.bsky.social")
+                user.id,
+                Handle(root=f"used{i}.bsky.social"),
+                BlueskyDID(f"did:plc:used{i}"),
             )
 
         # Configure unlimited inviters
@@ -148,7 +181,13 @@ class TestCreateInvitesUseCase:
         assert pending_count == 7
 
     @pytest.mark.asyncio
-    async def test_create_invites_handles_duplicates_gracefully(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_handles_duplicates_gracefully(
+        self, mock_resolve, unit_env
+    ):
         """Should track failed handles when duplicates exist."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -158,8 +197,11 @@ class TestCreateInvitesUseCase:
 
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
-        # Create an existing invite
-        await invite_service.create_invite(user.id, Handle(root="existing.bsky.social"))
+        # Create an existing invite with the deterministic DID
+        existing_did = mock_resolve_handle_to_did("existing.bsky.social")
+        await invite_service.create_invite(
+            user.id, Handle(root="existing.bsky.social"), existing_did
+        )
 
         use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
@@ -223,7 +265,11 @@ class TestCreateInvitesUseCase:
             await use_case.execute(request)
 
     @pytest.mark.asyncio
-    async def test_create_invites_zero_available_quota(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_zero_available_quota(self, mock_resolve, unit_env):
         """Should raise error when user has zero available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -237,8 +283,12 @@ class TestCreateInvitesUseCase:
         )
 
         # Use up all quota
-        await invite_service.create_invite(user.id, Handle(root="used1.bsky.social"))
-        await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
+        await invite_service.create_invite(
+            user.id, Handle(root="used1.bsky.social"), BlueskyDID("did:plc:used1")
+        )
+        await invite_service.create_invite(
+            user.id, Handle(root="used2.bsky.social"), BlueskyDID("did:plc:used2")
+        )
 
         use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 
@@ -253,7 +303,11 @@ class TestCreateInvitesUseCase:
             await use_case.execute(request)
 
     @pytest.mark.asyncio
-    async def test_create_invites_partial_quota_success(self, unit_env):
+    @patch(
+        "talk.application.usecase.invite.create_invites.resolve_handle_to_did",
+        side_effect=mock_resolve_handle_to_did,
+    )
+    async def test_create_invites_partial_quota_success(self, mock_resolve, unit_env):
         """Should succeed when creating invites within available quota."""
         # Arrange
         user_repo = await unit_env.get(UserRepository)
@@ -267,9 +321,15 @@ class TestCreateInvitesUseCase:
         )
 
         # Use up 3 of the quota
-        await invite_service.create_invite(user.id, Handle(root="used1.bsky.social"))
-        await invite_service.create_invite(user.id, Handle(root="used2.bsky.social"))
-        await invite_service.create_invite(user.id, Handle(root="used3.bsky.social"))
+        await invite_service.create_invite(
+            user.id, Handle(root="used1.bsky.social"), BlueskyDID("did:plc:used1")
+        )
+        await invite_service.create_invite(
+            user.id, Handle(root="used2.bsky.social"), BlueskyDID("did:plc:used2")
+        )
+        await invite_service.create_invite(
+            user.id, Handle(root="used3.bsky.social"), BlueskyDID("did:plc:used3")
+        )
 
         use_case = CreateInvitesUseCase(invite_service, user_service, settings)
 

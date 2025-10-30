@@ -35,7 +35,9 @@ class TestLoginUseCase:
 
         # Create a pending invite for the user (MockBlueskyAuthClient returns "user.bsky.social")
         inviter_id = UserId(uuid4())
-        await invite_service.create_invite(inviter_id, Handle(root="user.bsky.social"))
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user.bsky.social"), BlueskyDID("did:plc:mock123")
+        )
 
         login_use_case = LoginUseCase(
             auth_service=auth_service,
@@ -70,7 +72,7 @@ class TestLoginUseCase:
 
         # Verify invite was marked as accepted
         has_pending = await invite_service.check_invite_exists(
-            Handle(root="user.bsky.social")
+            BlueskyDID("did:plc:mock123")
         )
         assert has_pending is False  # No longer pending
 
@@ -184,9 +186,11 @@ class TestLoginUseCase:
 
         # Create invite and mark as accepted
         inviter_id = UserId(uuid4())
-        await invite_service.create_invite(inviter_id, Handle(root="user.bsky.social"))
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user.bsky.social"), BlueskyDID("did:plc:mock123")
+        )
         await invite_service.accept_invite(
-            Handle(root="user.bsky.social"), UserId(uuid4())
+            BlueskyDID("did:plc:mock123"), UserId(uuid4())
         )
 
         login_use_case = LoginUseCase(
@@ -252,6 +256,6 @@ class TestLoginUseCase:
 
         # Verify NO invite was used (seed users don't need invites)
         has_pending = await invite_service.check_invite_exists(
-            Handle(root="user.bsky.social")
+            BlueskyDID("did:plc:mock123")
         )
         assert has_pending is False  # No invite needed or used

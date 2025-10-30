@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from talk.domain.model.invite import Invite
 from talk.domain.value import InviteId, InviteStatus, UserId
-from talk.domain.value.types import Handle
+from talk.domain.value.types import BlueskyDID
 
 
 class InviteRepository(ABC):
@@ -27,13 +27,14 @@ class InviteRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_pending_by_handle(self, handle: Handle) -> Invite | None:
-        """Find a pending invite by handle.
+    async def find_pending_by_did(self, did: BlueskyDID) -> Invite | None:
+        """Find a pending invite by DID.
 
         Critical for login check - must be fast.
+        DID is the primary matching identifier (handles can change).
 
         Args:
-            handle: The invitee's handle
+            did: The invitee's DID
 
         Returns:
             The pending invite if found, None otherwise

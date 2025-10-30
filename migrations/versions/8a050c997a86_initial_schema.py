@@ -267,6 +267,7 @@ def upgrade() -> None:
         ),
         sa.Column("inviter_id", sa.UUID(), nullable=False),
         sa.Column("invitee_handle", sa.String(255), nullable=False),
+        sa.Column("invitee_did", sa.String(255), nullable=False),
         sa.Column(
             "status",
             postgresql.ENUM(
@@ -290,16 +291,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # Critical index for login check - must be fast
+    # Critical index for login check - must be fast (DID is primary matching)
     op.create_index(
-        "idx_invites_invitee_handle_status", "invites", ["invitee_handle", "status"]
+        "idx_invites_invitee_did_status", "invites", ["invitee_did", "status"]
     )
     op.create_index("idx_invites_inviter_id", "invites", ["inviter_id"])
 
-    # Partial unique constraint: only one pending invite per handle
+    # Partial unique constraint: only one pending invite per DID
     op.execute("""
-        CREATE UNIQUE INDEX idx_invites_unique_pending_handle
-        ON invites (invitee_handle)
+        CREATE UNIQUE INDEX idx_invites_unique_pending_did
+        ON invites (invitee_did)
         WHERE status = 'pending'
     """)
 

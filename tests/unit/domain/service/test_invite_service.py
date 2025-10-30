@@ -7,7 +7,7 @@ import pytest
 
 from talk.domain.service import InviteService
 from talk.domain.value import InviteStatus, UserId
-from talk.domain.value.types import Handle
+from talk.domain.value.types import BlueskyDID, Handle
 from talk.persistence.repository.invite import InviteRepository
 from tests.harness import create_env_fixture
 
@@ -27,13 +27,17 @@ class TestCreateInvite:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="friend.bsky.social")
+        invitee_did = BlueskyDID("did:plc:abc123")
 
         # Act
-        result = await invite_service.create_invite(inviter_id, invitee_handle)
+        result = await invite_service.create_invite(
+            inviter_id, invitee_handle, invitee_did
+        )
 
         # Assert
         assert result.inviter_id == inviter_id
         assert result.invitee_handle == invitee_handle
+        assert result.invitee_did == invitee_did
         assert result.status == InviteStatus.PENDING
         assert result.accepted_at is None
         assert result.accepted_by_user_id is None
@@ -51,13 +55,14 @@ class TestCreateInvite:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="friend.bsky.social")
+        invitee_did = BlueskyDID("did:plc:abc123")
 
         # Create first invite
-        await invite_service.create_invite(inviter_id, invitee_handle)
+        await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
 
-        # Act & Assert - Second invite for same handle should fail
+        # Act & Assert - Second invite for same DID should fail
         with pytest.raises(ValueError, match="Invite already exists"):
-            await invite_service.create_invite(inviter_id, invitee_handle)
+            await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
 
     @pytest.mark.asyncio
     async def test_create_invite_after_accepted_succeeds(self, unit_env):
@@ -67,14 +72,17 @@ class TestCreateInvite:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="friend.bsky.social")
+        invitee_did = BlueskyDID("did:plc:abc123")
 
         # Create and accept first invite
-        await invite_service.create_invite(inviter_id, invitee_handle)
-        await invite_service.accept_invite(invitee_handle, UserId(uuid4()))
+        await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
+        await invite_service.accept_invite(invitee_did, UserId(uuid4()))
 
         # Act - Create new invite from different inviter
         another_inviter = UserId(uuid4())
-        result = await invite_service.create_invite(another_inviter, invitee_handle)
+        result = await invite_service.create_invite(
+            another_inviter, invitee_handle, invitee_did
+        )
 
         # Assert - Should succeed because previous invite is no longer pending
         assert result.inviter_id == another_inviter
@@ -93,13 +101,16 @@ class TestAcceptInvite:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="newuser.bsky.social")
+        invitee_did = BlueskyDID("did:plc:newuser123")
         new_user_id = UserId(uuid4())
 
         # Create pending invite
-        invite = await invite_service.create_invite(inviter_id, invitee_handle)
+        invite = await invite_service.create_invite(
+            inviter_id, invitee_handle, invitee_did
+        )
 
         # Act
-        result = await invite_service.accept_invite(invitee_handle, new_user_id)
+        result = await invite_service.accept_invite(invitee_did, new_user_id)
 
         # Assert
         assert result.id == invite.id
@@ -119,12 +130,12 @@ class TestAcceptInvite:
         # Arrange
         invite_service = await unit_env.get(InviteService)
 
-        invitee_handle = Handle(root="nobody.bsky.social")
+        invitee_did = BlueskyDID("did:plc:nobody123")
         new_user_id = UserId(uuid4())
 
         # Act & Assert
         with pytest.raises(ValueError, match="No pending invite found"):
-            await invite_service.accept_invite(invitee_handle, new_user_id)
+            await invite_service.accept_invite(invitee_did, new_user_id)
 
     @pytest.mark.asyncio
     async def test_accept_already_accepted_invite_raises_error(self, unit_env):
@@ -134,15 +145,16 @@ class TestAcceptInvite:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="user.bsky.social")
+        invitee_did = BlueskyDID("did:plc:user123")
 
         # Create and accept invite
-        await invite_service.create_invite(inviter_id, invitee_handle)
+        await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
         first_user_id = UserId(uuid4())
-        await invite_service.accept_invite(invitee_handle, first_user_id)
+        await invite_service.accept_invite(invitee_did, first_user_id)
 
         # Act & Assert - Try to accept again
         with pytest.raises(ValueError, match="No pending invite found"):
-            await invite_service.accept_invite(invitee_handle, UserId(uuid4()))
+            await invite_service.accept_invite(invitee_did, UserId(uuid4()))
 
 
 class TestCheckInviteExists:
@@ -156,11 +168,12 @@ class TestCheckInviteExists:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="invited.bsky.social")
+        invitee_did = BlueskyDID("did:plc:invited123")
 
-        await invite_service.create_invite(inviter_id, invitee_handle)
+        await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
 
         # Act
-        result = await invite_service.check_invite_exists(invitee_handle)
+        result = await invite_service.check_invite_exists(invitee_did)
 
         # Assert
         assert result is True
@@ -170,10 +183,10 @@ class TestCheckInviteExists:
         """Should return False when no pending invite exists."""
         # Arrange
         invite_service = await unit_env.get(InviteService)
-        invitee_handle = Handle(root="notinvited.bsky.social")
+        invitee_did = BlueskyDID("did:plc:notinvited123")
 
         # Act
-        result = await invite_service.check_invite_exists(invitee_handle)
+        result = await invite_service.check_invite_exists(invitee_did)
 
         # Assert
         assert result is False
@@ -186,13 +199,14 @@ class TestCheckInviteExists:
 
         inviter_id = UserId(uuid4())
         invitee_handle = Handle(root="user.bsky.social")
+        invitee_did = BlueskyDID("did:plc:user123")
 
         # Create and accept invite
-        await invite_service.create_invite(inviter_id, invitee_handle)
-        await invite_service.accept_invite(invitee_handle, UserId(uuid4()))
+        await invite_service.create_invite(inviter_id, invitee_handle, invitee_did)
+        await invite_service.accept_invite(invitee_did, UserId(uuid4()))
 
         # Act
-        result = await invite_service.check_invite_exists(invitee_handle)
+        result = await invite_service.check_invite_exists(invitee_did)
 
         # Assert
         assert result is False  # No PENDING invite
@@ -222,14 +236,18 @@ class TestGetPendingCount:
         inviter_id = UserId(uuid4())
 
         # Create 3 invites
-        await invite_service.create_invite(inviter_id, Handle(root="user1.bsky.social"))
-        await invite_service.create_invite(inviter_id, Handle(root="user2.bsky.social"))
-        await invite_service.create_invite(inviter_id, Handle(root="user3.bsky.social"))
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user1.bsky.social"), BlueskyDID("did:plc:user1")
+        )
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user2.bsky.social"), BlueskyDID("did:plc:user2")
+        )
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user3.bsky.social"), BlueskyDID("did:plc:user3")
+        )
 
         # Accept one of them
-        await invite_service.accept_invite(
-            Handle(root="user2.bsky.social"), UserId(uuid4())
-        )
+        await invite_service.accept_invite(BlueskyDID("did:plc:user2"), UserId(uuid4()))
 
         # Act
         count = await invite_service.get_pending_count(inviter_id)
@@ -246,11 +264,17 @@ class TestGetPendingCount:
         user2_id = UserId(uuid4())
 
         # User 1 creates 2 invites
-        await invite_service.create_invite(user1_id, Handle(root="friend1.bsky.social"))
-        await invite_service.create_invite(user1_id, Handle(root="friend2.bsky.social"))
+        await invite_service.create_invite(
+            user1_id, Handle(root="friend1.bsky.social"), BlueskyDID("did:plc:friend1")
+        )
+        await invite_service.create_invite(
+            user1_id, Handle(root="friend2.bsky.social"), BlueskyDID("did:plc:friend2")
+        )
 
         # User 2 creates 1 invite
-        await invite_service.create_invite(user2_id, Handle(root="friend3.bsky.social"))
+        await invite_service.create_invite(
+            user2_id, Handle(root="friend3.bsky.social"), BlueskyDID("did:plc:friend3")
+        )
 
         # Act
         user1_count = await invite_service.get_pending_count(user1_id)
@@ -273,10 +297,10 @@ class TestListInvites:
 
         # Create invites
         invite1 = await invite_service.create_invite(
-            inviter_id, Handle(root="user1.bsky.social")
+            inviter_id, Handle(root="user1.bsky.social"), BlueskyDID("did:plc:user1")
         )
         invite2 = await invite_service.create_invite(
-            inviter_id, Handle(root="user2.bsky.social")
+            inviter_id, Handle(root="user2.bsky.social"), BlueskyDID("did:plc:user2")
         )
 
         # Act
@@ -296,14 +320,18 @@ class TestListInvites:
         inviter_id = UserId(uuid4())
 
         # Create invites
-        await invite_service.create_invite(inviter_id, Handle(root="user1.bsky.social"))
-        await invite_service.create_invite(inviter_id, Handle(root="user2.bsky.social"))
-        await invite_service.create_invite(inviter_id, Handle(root="user3.bsky.social"))
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user1.bsky.social"), BlueskyDID("did:plc:user1")
+        )
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user2.bsky.social"), BlueskyDID("did:plc:user2")
+        )
+        await invite_service.create_invite(
+            inviter_id, Handle(root="user3.bsky.social"), BlueskyDID("did:plc:user3")
+        )
 
         # Accept one
-        await invite_service.accept_invite(
-            Handle(root="user2.bsky.social"), UserId(uuid4())
-        )
+        await invite_service.accept_invite(BlueskyDID("did:plc:user2"), UserId(uuid4()))
 
         # Act - Get only pending
         pending = await invite_service.list_invites(
@@ -329,7 +357,9 @@ class TestListInvites:
         # Create 5 invites
         for i in range(5):
             await invite_service.create_invite(
-                inviter_id, Handle(root=f"user{i}.bsky.social")
+                inviter_id,
+                Handle(root=f"user{i}.bsky.social"),
+                BlueskyDID(f"did:plc:user{i}"),
             )
 
         # Act
