@@ -21,8 +21,31 @@ class AuthService(Service):
         """
         self.bluesky_client = bluesky_client
 
+    async def initiate_login_with_server(
+        self, server_url: str = "https://bsky.social", login_hint: str | None = None
+    ) -> str:
+        """Initiate OAuth login flow using server identifier (recommended).
+
+        This is the recommended approach for most users. No handle required upfront.
+
+        Args:
+            server_url: PDS URL (defaults to Bluesky)
+            login_hint: Optional hint for auth server (email, handle fragment)
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails
+        """
+        return await self.bluesky_client.initiate_authorization_by_server(
+            server_url, login_hint
+        )
+
     async def initiate_login(self, account: str) -> str:
-        """Initiate OAuth login flow.
+        """Initiate OAuth login flow using handle or DID (advanced/legacy).
+
+        This is the handle-based approach for advanced users or custom PDS.
 
         Args:
             account: Bluesky handle (e.g., "alice.bsky.social") or DID

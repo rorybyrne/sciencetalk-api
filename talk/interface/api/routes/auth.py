@@ -24,9 +24,16 @@ router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRo
 
 
 class InitiateLoginRequest(BaseModel):
-    """Initiate login request."""
+    """Initiate login request.
 
-    account: str
+    Two modes:
+    1. Server-based (recommended): Omit account, optionally specify server
+    2. Handle-based (advanced): Provide specific handle or DID
+    """
+
+    account: str | None = None  # Optional: handle/DID for advanced users
+    server: str = "https://bsky.social"  # Server URL (default to Bluesky)
+    login_hint: str | None = None  # Optional hint for auth server
 
 
 class InitiateLoginResponse(BaseModel):
@@ -49,11 +56,19 @@ async def initiate_login(
 ) -> InitiateLoginResponse:
     """Initiate OAuth login flow.
 
-    Accepts a Bluesky handle or DID and returns the authorization URL
-    to redirect the user to for authentication.
+    Two modes supported:
+
+    1. **Server-based (recommended)**: Simple "Sign in with Bluesky" button
+       - No handle input required
+       - Works for 99% of users
+       - Just send empty request body or specify custom server
+
+    2. **Handle-based (advanced)**: For custom PDS or explicit targeting
+       - Provide specific handle or DID
+       - Useful for non-Bluesky servers
 
     Args:
-        request: Login request with account (handle or DID)
+        request: Login request with optional account and server
         auth_service: Authentication domain service from DI
 
     Returns:
@@ -62,10 +77,28 @@ async def initiate_login(
     Raises:
         HTTPException: If initiation fails
 
-    Example:
+    Examples:
+        # Simple: Sign in with Bluesky (recommended)
+        POST /auth/login
+        {}
+
+        # Advanced: Specific handle
         POST /auth/login
         {
             "account": "alice.bsky.social"
+        }
+
+        # Advanced: Custom PDS server
+        POST /auth/login
+        {
+            "server": "https://custom-pds.example.com"
+        }
+
+        # With login hint
+        POST /auth/login
+        {
+            "server": "https://bsky.social",
+            "login_hint": "alice@example.com"
         }
 
         Response:
@@ -74,7 +107,17 @@ async def initiate_login(
         }
     """
     try:
-        auth_url = await auth_service.initiate_login(request.account)
+        if request.account:
+            # Handle-based flow (existing/advanced)
+            logger.info(f"Initiating handle-based login for: {request.account}")
+            auth_url = await auth_service.initiate_login(request.account)
+        else:
+            # Server-based flow (new/recommended)
+            logger.info(f"Initiating server-based login with: {request.server}")
+            auth_url = await auth_service.initiate_login_with_server(
+                server_url=request.server, login_hint=request.login_hint
+            )
+
         return InitiateLoginResponse(authorization_url=auth_url)
     except BlueskyAuthError as e:
         raise HTTPException(

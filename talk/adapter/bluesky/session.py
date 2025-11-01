@@ -25,7 +25,7 @@ class OAuthSession(BaseModel):
         pkce_verifier: PKCE code verifier (secret, kept by client)
         pkce_challenge: PKCE code challenge (sent in authorization request)
         dpop_keypair: ES256 keypair for DPoP proof signing
-        account_did: Expected DID for verification after token exchange
+        account_did: Expected DID for verification (only set in handle-based flow)
         auth_server_issuer: Authorization server issuer URL
         created_at: Session creation timestamp
         expires_at: Session expiration timestamp (15 minutes from creation)

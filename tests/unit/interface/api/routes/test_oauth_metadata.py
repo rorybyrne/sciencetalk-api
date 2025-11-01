@@ -20,6 +20,7 @@ class TestGetOAuthClientMetadata:
         assert hasattr(metadata, "client_id")
         assert hasattr(metadata, "client_name")
         assert hasattr(metadata, "client_uri")
+        assert hasattr(metadata, "logo_uri")
         assert hasattr(metadata, "redirect_uris")
         assert hasattr(metadata, "grant_types")
         assert hasattr(metadata, "response_types")
@@ -56,6 +57,15 @@ class TestGetOAuthClientMetadata:
         metadata = get_oauth_client_metadata(settings)
 
         assert metadata.client_uri == "https://talk.example.com"
+
+    def test_logo_uri_points_to_amacrin_svg(self):
+        """Logo URI should point to amacrin.svg."""
+        settings = Settings()
+        settings.api.base_url = "https://talk.example.com"
+
+        metadata = get_oauth_client_metadata(settings)
+
+        assert metadata.logo_uri == "https://talk.example.com/amacrin.svg"
 
     def test_redirect_uris_includes_callback(self):
         """Redirect URIs should include callback endpoint."""

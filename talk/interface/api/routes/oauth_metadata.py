@@ -15,6 +15,7 @@ class OAuthClientMetadata(BaseModel):
     client_id: str
     client_name: str
     client_uri: str
+    logo_uri: str
     redirect_uris: list[str]
     grant_types: list[str]
     response_types: list[str]
@@ -42,6 +43,7 @@ def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMeta
             "client_id": "https://talk.example.com/.well-known/oauth-client-metadata",
             "client_name": "Science Talk",
             "client_uri": "https://talk.example.com",
+            "logo_uri": "https://talk.example.com/amacrin.svg",
             "redirect_uris": ["https://talk.example.com/auth/callback"],
             "grant_types": ["authorization_code"],
             "response_types": ["code"],
@@ -57,6 +59,7 @@ def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMeta
         client_id=f"{base_url}/.well-known/oauth-client-metadata",
         client_name="Science Talk",
         client_uri=base_url,
+        logo_uri=f"{base_url}/amacrin.svg",
         redirect_uris=[f"{base_url}/auth/callback"],
         grant_types=[
             "authorization_code",

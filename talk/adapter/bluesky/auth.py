@@ -34,8 +34,25 @@ class BlueskyUserInfo(BaseModel):
 class BlueskyAuthClient(Protocol):
     """Protocol for Bluesky authentication client."""
 
+    async def initiate_authorization_by_server(
+        self, server_url: str, login_hint: str | None = None
+    ) -> str:
+        """Initiate OAuth authorization flow using server identifier.
+
+        Args:
+            server_url: PDS URL (e.g., "https://bsky.social")
+            login_hint: Optional hint for auth server
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails
+        """
+        ...
+
     async def initiate_authorization(self, account_identifier: str) -> str:
-        """Initiate OAuth authorization flow.
+        """Initiate OAuth authorization flow using handle or DID.
 
         Args:
             account_identifier: Bluesky handle or DID
@@ -97,8 +114,109 @@ class ATProtocolOAuthClient:
         self._redirect_uri = redirect_uri
         self._session_store = session_store or InMemorySessionStore()
 
+    async def initiate_authorization_by_server(
+        self, server_url: str, login_hint: str | None = None
+    ) -> str:
+        """Initiate OAuth authorization flow using server identifier (PDS/entryway).
+
+        This is the recommended approach for most users. Instead of requiring
+        the user to provide their full handle upfront, we can start the OAuth
+        flow directly with the PDS server (e.g., bsky.social). The user's
+        identity will be determined during the authorization flow.
+
+        Benefits:
+        - Simpler UX: no handle input required
+        - Works when handle is temporarily broken
+        - Supports users who only know their email
+
+        This method:
+        1. Discovers authorization server metadata from PDS
+        2. Generates PKCE and DPoP credentials
+        3. Makes Pushed Authorization Request (PAR)
+        4. Creates temporary session (without account_did)
+        5. Returns authorization URL
+
+        Args:
+            server_url: PDS URL (e.g., "https://bsky.social")
+            login_hint: Optional hint for auth server (email, handle fragment)
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails at any step
+        """
+        try:
+            logger.info(f"OAuth login initiated for server: {server_url}")
+
+            # Step 1: Discover authorization server metadata
+            auth_metadata = await discover_auth_server(server_url)
+
+            logger.info(f"Using auth server: {auth_metadata.issuer}")
+
+            # Step 2: Generate PKCE pair and DPoP keypair
+            pkce_verifier, pkce_challenge = generate_pkce_pair()
+            dpop_keypair = DPoPKeyPair()
+
+            # Step 3: Generate random state parameter
+            state = secrets.token_urlsafe(32)
+
+            # Step 4: Make Pushed Authorization Request
+            request_uri, dpop_nonce = await self._make_par_request(
+                par_endpoint=auth_metadata.pushed_authorization_request_endpoint,
+                pkce_challenge=pkce_challenge,
+                dpop_keypair=dpop_keypair,
+                login_hint=login_hint,
+                state=state,
+            )
+
+            # Step 5: Create and save OAuth session (without account_did)
+            session = OAuthSession(
+                state=state,
+                pkce_verifier=pkce_verifier,
+                pkce_challenge=pkce_challenge,
+                dpop_keypair=dpop_keypair,
+                account_did=None,  # Server-based flow - DID unknown until callback
+                auth_server_issuer=auth_metadata.issuer,
+                auth_server_nonce=dpop_nonce,
+                created_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+            )
+            await self._session_store.save(state, session)
+
+            # Step 6: Build authorization URL
+            auth_url = (
+                f"{auth_metadata.authorization_endpoint}"
+                f"?client_id={self._client_id}"
+                f"&request_uri={request_uri}"
+            )
+
+            logger.info(f"Generated authorization URL for server {server_url}")
+            return auth_url
+
+        except BlueskyAuthError as e:
+            logger.error(
+                f"OAuth initiation failed for {server_url}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"OAuth initiation failed for {server_url}: {str(e)}",
+                exc_info=True,
+            )
+            raise BlueskyAuthError(f"Failed to initiate authorization: {e}") from e
+
     async def initiate_authorization(self, account_identifier: str) -> str:
-        """Initiate OAuth authorization flow.
+        """Initiate OAuth authorization flow using handle or DID (legacy/advanced).
+
+        This is the handle-based approach where the user provides their full
+        handle or DID upfront. This is useful for:
+        - Custom PDS servers (non-Bluesky)
+        - Explicit account targeting
+        - Advanced users who know their handle
+
+        For most users, prefer initiate_authorization_by_server() instead.
 
         This method:
         1. Resolves handle to DID and PDS endpoint
@@ -239,21 +357,28 @@ class ATProtocolOAuthClient:
             auth_metadata = await discover_auth_server(iss)
 
             # Step 4: Exchange code for access token
-            access_token = await self._exchange_code_for_token(
+            access_token, token_sub = await self._exchange_code_for_token(
                 token_endpoint=auth_metadata.token_endpoint,
                 code=code,
                 session=session,
             )
 
-            if not session.account_did:
-                raise BlueskyAuthError("Missing account DID in session")
+            # Step 5: Determine DID (from session in handle-based flow, or token sub in server-based)
+            if session.account_did:
+                # Handle-based flow: use pre-determined DID
+                expected_did = session.account_did
+            elif token_sub:
+                # Server-based flow: extract DID from token
+                expected_did = token_sub
+            else:
+                raise BlueskyAuthError("Unable to determine DID from session or token")
 
-            # Step 5: Resolve DID to PDS endpoint for profile fetch
-            did = BlueskyDID(session.account_did)
+            # Step 6: Resolve DID to PDS endpoint for profile fetch
+            did = BlueskyDID(expected_did)
             did_document = await resolve_did_document(did)
             pds_url = get_pds_endpoint(did_document)
 
-            # Step 6: Fetch user profile
+            # Step 7: Fetch user profile
             # Try using auth server nonce first - it may work with PDS too
             user_info = await self._get_user_profile(
                 pds_url=pds_url,
@@ -262,13 +387,13 @@ class ATProtocolOAuthClient:
                 pds_nonce=session.auth_server_nonce,  # Try auth server nonce first
             )
 
-            # Step 7: CRITICAL - Verify DID matches expected account
-            if user_info.did != session.account_did:
+            # Step 8: CRITICAL - Verify DID matches expected account
+            if user_info.did != expected_did:
                 raise BlueskyAuthError(
-                    f"DID mismatch: expected {session.account_did}, got {user_info.did}"
+                    f"DID mismatch: expected {expected_did}, got {user_info.did}"
                 )
 
-            # Step 8: Clean up session (tokens discarded automatically)
+            # Step 9: Clean up session (tokens discarded automatically)
             await self._session_store.delete(state)
 
             logger.info(
@@ -288,7 +413,7 @@ class ATProtocolOAuthClient:
         par_endpoint: str,
         pkce_challenge: str,
         dpop_keypair: DPoPKeyPair,
-        login_hint: str,
+        login_hint: str | None,
         state: str,
         nonce: str | None = None,
     ) -> tuple[str, str | None]:
@@ -298,7 +423,7 @@ class ATProtocolOAuthClient:
             par_endpoint: PAR endpoint URL
             pkce_challenge: PKCE code challenge
             dpop_keypair: DPoP keypair for proof
-            login_hint: DID to hint to auth server
+            login_hint: Optional DID or hint to pass to auth server
             state: State parameter
             nonce: Server nonce (for retry)
 
@@ -334,8 +459,11 @@ class ATProtocolOAuthClient:
             "redirect_uri": self._redirect_uri,
             "scope": "atproto",
             "state": state,
-            "login_hint": login_hint,
         }
+
+        # Add login_hint only if provided
+        if login_hint:
+            data["login_hint"] = login_hint
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(par_endpoint, headers=headers, data=data)
@@ -412,7 +540,7 @@ class ATProtocolOAuthClient:
         token_endpoint: str,
         code: str,
         session: OAuthSession,
-    ) -> str:
+    ) -> tuple[str, str | None]:
         """Exchange authorization code for access token.
 
         Args:
@@ -421,7 +549,7 @@ class ATProtocolOAuthClient:
             session: OAuth session with PKCE and DPoP (includes nonce from PAR)
 
         Returns:
-            Access token
+            Tuple of (access_token, sub_did) where sub_did is the DID from token response
 
         Raises:
             BlueskyAuthError: If token exchange fails
@@ -504,15 +632,17 @@ class ATProtocolOAuthClient:
                 logger.error(f"Token response scope missing 'atproto': {scope}")
                 raise BlueskyAuthError("Token response scope missing 'atproto'")
 
-            # Extract sub (DID) for verification
+            # Extract sub (DID) - this is the authenticated user's DID
             sub = result.get("sub")
-            if sub and sub != session.account_did:
+
+            # In handle-based flow, verify sub matches expected DID
+            if session.account_did and sub and sub != session.account_did:
                 raise BlueskyAuthError(
                     f"Token sub mismatch: expected {session.account_did}, got {sub}"
                 )
 
-            logger.debug(f"Token exchange successful, scope: {scope}")
-            return access_token
+            logger.debug(f"Token exchange successful, scope: {scope}, sub: {sub}")
+            return access_token, sub
 
     async def _get_user_profile(
         self,
@@ -627,8 +757,15 @@ class ATProtocolOAuthClient:
 class MockBlueskyAuthClient:
     """Mock Bluesky authentication client for development."""
 
+    async def initiate_authorization_by_server(
+        self, server_url: str, login_hint: str | None = None
+    ) -> str:
+        """Get mock authorization URL for server-based flow."""
+        hint_param = f"&login_hint={login_hint}" if login_hint else ""
+        return f"https://bsky.app/oauth/authorize?mock=true&server={server_url}{hint_param}"
+
     async def initiate_authorization(self, account_identifier: str) -> str:
-        """Get mock authorization URL."""
+        """Get mock authorization URL for handle-based flow."""
         return (
             f"https://bsky.app/oauth/authorize?mock=true&account={account_identifier}"
         )

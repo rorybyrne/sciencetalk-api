@@ -245,7 +245,7 @@ class TestCompleteAuthorization(TestATProtocolOAuthClient):
                     oauth_client, "_get_user_profile", new_callable=AsyncMock
                 ) as mock_get_profile,
             ):
-                mock_exchange.return_value = "mock_access_token"
+                mock_exchange.return_value = ("mock_access_token", "did:plc:abc123")
                 mock_get_profile.return_value = BlueskyUserInfo(
                     did="did:plc:abc123",
                     handle="alice.bsky.social",
@@ -327,7 +327,7 @@ class TestCompleteAuthorization(TestATProtocolOAuthClient):
                     oauth_client, "_get_user_profile", new_callable=AsyncMock
                 ) as mock_get_profile,
             ):
-                mock_exchange.return_value = "mock_access_token"
+                mock_exchange.return_value = ("mock_access_token", "did:plc:abc123")
                 # Return different DID than expected
                 mock_get_profile.return_value = BlueskyUserInfo(
                     did="did:plc:different",
@@ -373,7 +373,7 @@ class TestCompleteAuthorization(TestATProtocolOAuthClient):
                     oauth_client, "_get_user_profile", new_callable=AsyncMock
                 ) as mock_get_profile,
             ):
-                mock_exchange.return_value = "mock_access_token"
+                mock_exchange.return_value = ("mock_access_token", "did:plc:abc123")
                 mock_get_profile.return_value = BlueskyUserInfo(
                     did="did:plc:abc123",
                     handle="alice.bsky.social",
@@ -512,13 +512,14 @@ class TestExchangeCodeForToken(TestATProtocolOAuthClient):
                 return_value=mock_response
             )
 
-            access_token = await oauth_client._exchange_code_for_token(
+            access_token, token_sub = await oauth_client._exchange_code_for_token(
                 token_endpoint="https://bsky.social/oauth/token",
                 code="auth_code_123",
                 session=mock_session,
             )
 
             assert access_token == "access_token_123"
+            assert token_sub == "did:plc:abc123"
 
     @pytest.mark.asyncio
     async def test_verifies_token_sub_matches_session_did(

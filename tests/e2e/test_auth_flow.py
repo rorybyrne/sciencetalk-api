@@ -47,16 +47,20 @@ class TestAuthFlow:
         data = response.json()
         assert "authorization_url" in data
 
-    def test_initiate_login_requires_account(self, client):
-        """Should require account parameter."""
+    def test_initiate_login_with_empty_body_uses_server_based_flow(self, client):
+        """Should accept empty body and use server-based flow with Bluesky default."""
         # Act
         response = client.post(
             "/auth/login",
             json={},
         )
 
-        # Assert
-        assert response.status_code == 422  # Validation error
+        # Assert - Should succeed with server-based flow (Bluesky default)
+        assert response.status_code == 200
+        data = response.json()
+        assert "authorization_url" in data
+        # Server-based flow should include "server=" in mock URL
+        assert "server=" in data["authorization_url"]
 
     def test_callback_redirects_to_frontend(self, client, e2e_env):
         """Should handle callback and redirect to frontend."""
