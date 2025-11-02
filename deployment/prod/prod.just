@@ -366,15 +366,17 @@ info:
 
 # Connect to database (requires psql)
 db-connect:
-    @DB_ENDPOINT=$(aws lightsail get-relational-database \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DB_ENDPOINT=$(aws lightsail get-relational-database \
         --relational-database-name {{SERVICE_NAME}}-db \
         --region {{AWS_REGION}} \
         --profile {{AWS_PROFILE}} \
         --query 'relationalDatabase.masterEndpoint.[address,port]' \
-        --output text | tr '\t' ':'); \
-    echo "Connecting to database at $$DB_ENDPOINT..."; \
-    echo "Note: You'll need the database password from terraform.tfvars"; \
-    psql "postgresql://dbadmin@$$DB_ENDPOINT/talk"
+        --output text | tr '\t' ':')
+    echo "Connecting to database at $DB_ENDPOINT..."
+    echo "Note: You'll need the database password from terraform.tfvars"
+    psql "postgresql://dbadmin@$DB_ENDPOINT/talk"
 
 # Show current costs (requires AWS Cost Explorer to be enabled)
 costs:
