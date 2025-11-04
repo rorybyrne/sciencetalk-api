@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     )
 
     # Environment determines protocol and defaults
-    environment: Literal["development", "staging", "production"] = "development"
+    environment: Literal["test", "development", "staging", "production"] = "development"
     debug: bool = False
 
     # Host configuration (all URLs computed from these)
