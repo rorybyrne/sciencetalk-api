@@ -32,6 +32,12 @@ variable "domain_name" {
 variable "subdomain" {
   description = "Subdomain for the application"
   type        = string
+  default     = "talk-api"
+}
+
+variable "frontend_subdomain" {
+  description = "Subdomain for the API application"
+  type        = string
   default     = "talk"
 }
 

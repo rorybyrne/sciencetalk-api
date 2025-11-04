@@ -55,8 +55,8 @@ output "env_file_content" {
     jwt_secret = random_password.jwt_secret.result
 
     # API URLs
-    api_base_url     = "https://${var.subdomain}.${var.domain_name}"
-    api_frontend_url = "https://talk.${var.domain_name}"
+    api_host = "${var.subdomain}.${var.domain_name}"
+    frontend_host = "${var.frontend_subdomain}.${var.domain_name}"
 
     # Environment
     environment = "production"
