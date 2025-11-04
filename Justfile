@@ -15,8 +15,13 @@ test kind="":
 test-s kind="unit":
     @TEST=1 uv run pytest -s -o log_cli=True -o log_cli_level=DEBUG "tests/{{kind}}"
 
+[working-directory: 'deployment/local']
 test-e2e:
-    @uv run pytest "tests/e2e"
+    docker compose --profile test-e2e up --build --abort-on-container-exit test-e2e
+
+[working-directory: 'deployment/local']
+test-integration:
+    docker compose --profile test up --build --abort-on-container-exit test
 
 # Code quality commands
 fix dir="talk":

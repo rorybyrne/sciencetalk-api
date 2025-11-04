@@ -159,7 +159,7 @@ class Settings(BaseSettings):
     def initialize_api_settings(self) -> "Settings":
         """Initialize API settings from host and environment."""
         protocol: Literal["http", "https"] = (
-            "http" if self.environment == "development" else "https"
+            "http" if self.environment in ("test", "development") else "https"
         )
 
         self.api = APISettings(

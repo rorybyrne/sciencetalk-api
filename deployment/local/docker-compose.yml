@@ -45,9 +45,11 @@ services:
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
       - DATABASE_USER=talk
-      - ATPROTO_PDS_URL=https://bsky.social
       - ENVIRONMENT=test
       - DEBUG=true
+      - HOST=api
+      - FRONTEND_HOST=localhost
+      - PORT=8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,10 +71,11 @@ services:
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
       - DATABASE_USER=talk
-      - ATPROTO_PDS_URL=https://bsky.social
       - ENVIRONMENT=test
       - DEBUG=true
-      - API__BASE_URL=http://api:8000
+      - HOST=api
+      - FRONTEND_HOST=localhost
+      - PORT=8000
     depends_on:
       postgres:
         condition: service_healthy
