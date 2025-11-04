@@ -37,16 +37,6 @@ def upgrade() -> None:
     # Create ENUM types (idempotent)
     op.execute("""
         DO $$ BEGIN
-            CREATE TYPE post_type AS ENUM (
-                'result', 'method', 'review', 'discussion', 'ask', 'tool'
-            );
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """)
-
-    op.execute("""
-        DO $$ BEGIN
             CREATE TYPE votable_type AS ENUM ('post', 'comment');
         EXCEPTION
             WHEN duplicate_object THEN null;
@@ -149,6 +139,36 @@ def upgrade() -> None:
     )
 
     # ========================================================================
+    # TAGS table
+    # ========================================================================
+    op.create_table(
+        "tags",
+        sa.Column(
+            "id",
+            sa.UUID(),
+            server_default=sa.text("uuid_generate_v4()"),
+            nullable=False,
+        ),
+        sa.Column("name", sa.String(30), nullable=False),
+        sa.Column("description", sa.String(200), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name", name="uq_tag_name"),
+    )
+    op.create_index("idx_tags_name", "tags", ["name"], unique=True)
+
+    # ========================================================================
     # POSTS table
     # ========================================================================
     op.create_table(
@@ -160,20 +180,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("title", sa.String(300), nullable=False),
-        sa.Column(
-            "type",
-            postgresql.ENUM(
-                "result",
-                "method",
-                "review",
-                "discussion",
-                "ask",
-                "tool",
-                name="post_type",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
         sa.Column("url", sa.Text(), nullable=True),
         sa.Column("text", sa.Text(), nullable=True),
         sa.Column("author_id", sa.UUID(), nullable=False),
@@ -195,20 +201,42 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["author_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        # Business rules as CHECK constraints
+        # Business rule: must have URL or text content
         sa.CheckConstraint(
-            "(type IN ('result', 'method', 'review', 'tool') AND url IS NOT NULL) OR (type IN ('discussion', 'ask'))",
-            name="url_required_for_url_types",
-        ),
-        sa.CheckConstraint(
-            "(type IN ('discussion', 'ask') AND text IS NOT NULL) OR (type IN ('result', 'method', 'review', 'tool'))",
-            name="text_required_for_text_types",
+            "(url IS NOT NULL OR text IS NOT NULL)",
+            name="url_or_text_required",
         ),
     )
     op.create_index("idx_posts_created_at", "posts", [sa.text("created_at DESC")])
-    op.create_index("idx_posts_type", "posts", ["type"])
     op.create_index("idx_posts_author_id", "posts", ["author_id"])
     op.create_index("idx_posts_deleted_at", "posts", ["deleted_at"])
+
+    # ========================================================================
+    # POST_TAGS table (junction table for many-to-many)
+    # ========================================================================
+    op.create_table(
+        "post_tags",
+        sa.Column(
+            "id",
+            sa.UUID(),
+            server_default=sa.text("uuid_generate_v4()"),
+            nullable=False,
+        ),
+        sa.Column("post_id", sa.UUID(), nullable=False),
+        sa.Column("tag_id", sa.UUID(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.ForeignKeyConstraint(["post_id"], ["posts.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tag_id"], ["tags.id"], ondelete="RESTRICT"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("post_id", "tag_id", name="uq_post_tag"),
+    )
+    op.create_index("idx_post_tags_post_id", "post_tags", ["post_id"])
+    op.create_index("idx_post_tags_tag_id", "post_tags", ["tag_id"])
 
     # ========================================================================
     # COMMENTS table

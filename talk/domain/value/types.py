@@ -4,42 +4,12 @@ Value objects are immutable and defined by their values, not identity.
 They encapsulate validation rules and business logic.
 """
 
+import re
 from enum import Enum
 
 from pydantic import field_validator
 
 from talk.domain.value.common import RootValueObject, ValueObject
-
-
-class PostType(str, Enum):
-    """Type of scientific post.
-
-    Each type has specific content requirements:
-    - URL-based types (result, method, review, tool): require URL
-    - Text-based types (discussion, ask): require text content
-    """
-
-    RESULT = "result"  # Published findings or experimental results
-    METHOD = "method"  # Experimental protocols or techniques
-    REVIEW = "review"  # Literature reviews or paper summaries
-    DISCUSSION = "discussion"  # Text-based discussions
-    ASK = "ask"  # Questions to the community
-    TOOL = "tool"  # Software tools or datasets
-
-    @property
-    def requires_url(self) -> bool:
-        """Check if this post type requires a URL."""
-        return self in (
-            PostType.RESULT,
-            PostType.METHOD,
-            PostType.REVIEW,
-            PostType.TOOL,
-        )
-
-    @property
-    def requires_text(self) -> bool:
-        """Check if this post type requires text content."""
-        return self in (PostType.DISCUSSION, PostType.ASK)
 
 
 class VoteType(str, Enum):
@@ -63,6 +33,24 @@ class InviteStatus(str, Enum):
 
     PENDING = "pending"
     ACCEPTED = "accepted"
+
+
+class TagName(RootValueObject[str]):
+    """Tag name for categorizing posts.
+
+    Must be lowercase, alphanumeric with hyphens, 2-30 characters.
+    Examples: 'machine-learning', 'neuroscience', 'paper', 'tool'
+    """
+
+    @field_validator("root")
+    @classmethod
+    def validate_tag_name(cls, v: str) -> str:
+        """Validate tag name format."""
+        if not re.match(r"^[a-z0-9-]{2,30}$", v):
+            raise ValueError(
+                "Tag name must be 2-30 characters, lowercase, alphanumeric with hyphens"
+            )
+        return v
 
 
 class AuthProvider(str, Enum):

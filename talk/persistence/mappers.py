@@ -7,7 +7,7 @@ instead of SQLAlchemy's classical imperative mapping.
 from typing import Any, Dict
 from uuid import UUID
 
-from talk.domain.model import Comment, Invite, Post, User, UserIdentity, Vote
+from talk.domain.model import Comment, Invite, Post, Tag, User, UserIdentity, Vote
 from talk.domain.value import (
     AuthProvider,
     CommentId,
@@ -15,7 +15,8 @@ from talk.domain.value import (
     InviteStatus,
     InviteToken,
     PostId,
-    PostType,
+    TagId,
+    TagName,
     UserId,
     UserIdentityId,
     VotableType,
@@ -96,19 +97,52 @@ def user_identity_to_dict(identity: UserIdentity) -> Dict[str, Any]:
     return identity.model_dump()
 
 
-def row_to_post(row: Dict[str, Any]) -> Post:
-    """Convert database row to Post domain model.
+def row_to_tag(row: Dict[str, Any]) -> Tag:
+    """Convert database row to Tag domain model.
 
     Args:
         row: Database row as dict
 
     Returns:
+        Tag domain model
+    """
+    return Tag(
+        id=TagId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
+        name=TagName(row["name"]),
+        description=row["description"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def tag_to_dict(tag: Tag) -> Dict[str, Any]:
+    """Convert Tag domain model to database dict.
+
+    Args:
+        tag: Tag domain model
+
+    Returns:
+        Dict suitable for database insertion/update
+    """
+    return tag.model_dump()
+
+
+def row_to_post(row: Dict[str, Any], tag_names: list[str] | None = None) -> Post:
+    """Convert database row to Post domain model.
+
+    Args:
+        row: Database row as dict
+        tag_names: Optional list of tag names (must be provided from join query)
+
+    Returns:
         Post domain model
     """
+    if tag_names is None:
+        tag_names = []
+
     return Post(
         id=PostId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
         title=row["title"],
-        type=PostType(row["type"]),
         author_id=UserId(
             UUID(row["author_id"])
             if isinstance(row["author_id"], str)
@@ -117,6 +151,7 @@ def row_to_post(row: Dict[str, Any]) -> Post:
         author_handle=Handle(row["author_handle"]),
         url=row.get("url"),
         text=row.get("text"),
+        tag_names=[TagName(name) for name in tag_names],
         points=row["points"],
         comment_count=row["comment_count"],
         created_at=row["created_at"],
@@ -126,15 +161,18 @@ def row_to_post(row: Dict[str, Any]) -> Post:
 
 
 def post_to_dict(post: Post) -> Dict[str, Any]:
-    """Convert Post domain model to database dict.
+    """Convert Post domain model to database dict (excluding tag_names).
 
     Args:
         post: Post domain model
 
     Returns:
-        Dict suitable for database insertion/update
+        Dict suitable for database insertion/update (tags handled separately in post_tags table)
     """
-    return post.model_dump()
+    data = post.model_dump()
+    # Remove tag_names as they're stored in post_tags junction table
+    data.pop("tag_names", None)
+    return data
 
 
 def row_to_comment(row: Dict[str, Any]) -> Comment:

@@ -1,18 +1,18 @@
 """PostgreSQL implementation of Post repository."""
 
-import logging
+import logfire
+from collections import defaultdict
 from typing import List, Optional
+from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import Post
 from talk.domain.repository.post import PostRepository, PostSortOrder
-from talk.domain.value import PostId, PostType, UserId
+from talk.domain.value import PostId, TagName, UserId
 from talk.persistence.mappers import post_to_dict, row_to_post
-from talk.persistence.tables import posts_table
-
-logger = logging.getLogger(__name__)
+from talk.persistence.tables import post_tags_table, posts_table, tags_table
 
 
 class PostgresPostRepository(PostRepository):
@@ -26,60 +26,149 @@ class PostgresPostRepository(PostRepository):
         """
         self.session = session
 
+    async def _fetch_tags_for_posts(
+        self, post_ids: list[UUID]
+    ) -> dict[UUID, list[str]]:
+        """Fetch tags for multiple posts in a single query.
+
+        Args:
+            post_ids: List of post IDs
+
+        Returns:
+            Dict mapping post_id -> list of tag names
+        """
+        if not post_ids:
+            return {}
+
+        stmt = (
+            select(post_tags_table.c.post_id, tags_table.c.name)
+            .select_from(post_tags_table)
+            .join(tags_table, post_tags_table.c.tag_id == tags_table.c.id)
+            .where(post_tags_table.c.post_id.in_(post_ids))
+        )
+        result = await self.session.execute(stmt)
+        rows = result.fetchall()
+
+        # Build lookup: post_id -> [tag_names]
+        post_tag_map: dict[UUID, list[str]] = defaultdict(list)
+        for row in rows:
+            post_tag_map[row.post_id].append(row.name)
+
+        return post_tag_map
+
     async def find_by_id(self, post_id: PostId) -> Optional[Post]:
         """Find a post by ID."""
-        logger.debug(f"DB query: SELECT post WHERE id={post_id}")
-        stmt = select(posts_table).where(posts_table.c.id == post_id)
-        result = await self.session.execute(stmt)
-        row = result.fetchone()
+        with logfire.span("post_repository.find_by_id", post_id=str(post_id)):
+            stmt = select(posts_table).where(posts_table.c.id == post_id)
+            result = await self.session.execute(stmt)
+            row = result.fetchone()
 
-        if row:
-            logger.debug(f"DB result: Found post {post_id}")
-        else:
-            logger.warning(f"DB result: Post {post_id} not found in database")
+            if not row:
+                logfire.warn("Post not found", post_id=str(post_id))
+                return None
 
-        return row_to_post(row._asdict()) if row else None
+            # Fetch tags for this post
+            post_tag_map = await self._fetch_tags_for_posts([post_id])
+            tag_names = post_tag_map.get(post_id, [])
+
+            return row_to_post(row._asdict(), tag_names=tag_names)
 
     async def find_all(
         self,
         sort: PostSortOrder = PostSortOrder.RECENT,
-        post_type: Optional[PostType] = None,
+        tag: Optional[TagName] = None,
         include_deleted: bool = False,
         limit: int = 30,
         offset: int = 0,
     ) -> List[Post]:
         """Find posts with filtering and pagination."""
-        logger.debug(
-            f"DB query: SELECT posts WHERE type={post_type}, "
-            f"deleted={include_deleted}, sort={sort}, limit={limit}, offset={offset}"
-        )
+        with logfire.span(
+            "post_repository.find_all",
+            sort=sort.value,
+            tag=tag.root if tag else None,
+            include_deleted=include_deleted,
+            limit=limit,
+            offset=offset,
+        ):
+            stmt = select(posts_table)
 
-        stmt = select(posts_table)
+            # Filter by tag (join with post_tags and tags tables)
+            if tag:
+                stmt = (
+                    stmt.select_from(posts_table)
+                    .join(
+                        post_tags_table, posts_table.c.id == post_tags_table.c.post_id
+                    )
+                    .join(tags_table, post_tags_table.c.tag_id == tags_table.c.id)
+                    .where(tags_table.c.name == tag.root)
+                )
 
-        # Filter by type
-        if post_type:
-            stmt = stmt.where(posts_table.c.type == post_type.value)
+            # Filter deleted
+            if not include_deleted:
+                stmt = stmt.where(posts_table.c.deleted_at.is_(None))
 
-        # Filter deleted
-        if not include_deleted:
-            stmt = stmt.where(posts_table.c.deleted_at.is_(None))
+            # Sort order
+            if sort == PostSortOrder.RECENT:
+                stmt = stmt.order_by(desc(posts_table.c.created_at))
+            else:  # ACTIVE - sort by most recent comment
+                # For active sorting, we'd need a subquery to find last comment time
+                # For now, fall back to created_at (can optimize later)
+                stmt = stmt.order_by(desc(posts_table.c.updated_at))
 
-        # Sort order
-        if sort == PostSortOrder.RECENT:
-            stmt = stmt.order_by(desc(posts_table.c.created_at))
-        else:  # ACTIVE - sort by most recent comment
-            # For active sorting, we'd need a subquery to find last comment time
-            # For now, fall back to created_at (can optimize later)
-            stmt = stmt.order_by(desc(posts_table.c.updated_at))
+            # Pagination
+            stmt = stmt.limit(limit).offset(offset)
 
-        # Pagination
-        stmt = stmt.limit(limit).offset(offset)
+            result = await self.session.execute(stmt)
+            post_rows = result.fetchall()
 
-        result = await self.session.execute(stmt)
-        posts = [row_to_post(row._asdict()) for row in result.fetchall()]
+            if not post_rows:
+                logfire.info("No posts found")
+                return []
 
-        logger.info(f"DB result: Found {len(posts)} posts")
-        return posts
+            # Fetch tags for all posts in a single query
+            post_ids = [row.id for row in post_rows]
+            post_tag_map = await self._fetch_tags_for_posts(post_ids)
+
+            # Build Post domain models with tags
+            posts = []
+            for row in post_rows:
+                tag_names = post_tag_map.get(row.id, [])
+                posts.append(row_to_post(row._asdict(), tag_names=tag_names))
+
+            logfire.info("Found posts", count=len(posts))
+            return posts
+
+    async def count(
+        self,
+        tag: Optional[TagName] = None,
+        include_deleted: bool = False,
+    ) -> int:
+        """Count posts matching the given filters."""
+        with logfire.span(
+            "post_repository.count",
+            tag=tag.root if tag else None,
+            include_deleted=include_deleted,
+        ):
+            stmt = select(func.count()).select_from(posts_table)
+
+            # Filter by tag (join with post_tags and tags tables)
+            if tag:
+                stmt = (
+                    stmt.join(
+                        post_tags_table, posts_table.c.id == post_tags_table.c.post_id
+                    )
+                    .join(tags_table, post_tags_table.c.tag_id == tags_table.c.id)
+                    .where(tags_table.c.name == tag.root)
+                )
+
+            # Filter deleted
+            if not include_deleted:
+                stmt = stmt.where(posts_table.c.deleted_at.is_(None))
+
+            result = await self.session.execute(stmt)
+            count = result.scalar() or 0
+            logfire.info("Post count", count=count)
+            return count
 
     async def find_by_author(
         self,
@@ -97,38 +186,85 @@ class PostgresPostRepository(PostRepository):
         stmt = stmt.order_by(desc(posts_table.c.created_at)).limit(limit).offset(offset)
 
         result = await self.session.execute(stmt)
-        return [row_to_post(row._asdict()) for row in result.fetchall()]
+        post_rows = result.fetchall()
+
+        if not post_rows:
+            return []
+
+        # Fetch tags for all posts
+        post_ids = [row.id for row in post_rows]
+        post_tag_map = await self._fetch_tags_for_posts(post_ids)
+
+        # Build Post domain models with tags
+        posts = []
+        for row in post_rows:
+            tag_names = post_tag_map.get(row.id, [])
+            posts.append(row_to_post(row._asdict(), tag_names=tag_names))
+
+        return posts
 
     async def save(self, post: Post) -> Post:
         """Save a post (create or update)."""
-        existing = await self.find_by_id(post.id)
+        with logfire.span(
+            "post_repository.save",
+            post_id=str(post.id),
+            title=post.title,
+            tags=[t.root for t in post.tag_names],
+        ):
+            existing = await self.find_by_id(post.id)
 
-        post_dict = post_to_dict(post)
+            post_dict = post_to_dict(post)  # Note: tag_names are excluded by mapper
 
-        if existing:
-            # Update
-            logger.info(f"DB: Updating existing post {post.id}")
-            stmt = (
-                posts_table.update()
-                .where(posts_table.c.id == post.id)
-                .values(**post_dict)
+            if existing:
+                # Update post
+                logfire.info("Updating existing post", post_id=str(post.id))
+                stmt = (
+                    posts_table.update()
+                    .where(posts_table.c.id == post.id)
+                    .values(**post_dict)
+                )
+                await self.session.execute(stmt)
+
+                # Delete existing post_tags
+                delete_stmt = delete(post_tags_table).where(
+                    post_tags_table.c.post_id == post.id
+                )
+                await self.session.execute(delete_stmt)
+            else:
+                # Insert new post
+                logfire.info(
+                    "Inserting new post",
+                    post_id=str(post.id),
+                    title=post.title,
+                    tags=[t.root for t in post.tag_names],
+                    author=post.author_handle.root,
+                )
+                stmt = posts_table.insert().values(**post_dict)
+                await self.session.execute(stmt)
+
+            # Insert post_tags relationships
+            # First, we need to look up tag IDs from tag names
+            tag_lookup_stmt = select(tags_table.c.id, tags_table.c.name).where(
+                tags_table.c.name.in_([tag.root for tag in post.tag_names])
             )
-            await self.session.execute(stmt)
-        else:
-            # Insert
-            logger.info(
-                f"DB: Inserting new post {post.id} "
-                f"(title='{post.title}', type={post.type}, author={post.author_handle})"
-            )
-            stmt = posts_table.insert().values(**post_dict)
-            await self.session.execute(stmt)
+            tag_result = await self.session.execute(tag_lookup_stmt)
+            tag_rows = tag_result.fetchall()
 
-        await self.session.flush()
-        logger.info(
-            f"DB: Post {post.id} flushed to DB successfully "
-            "(will be committed at end of request)"
-        )
-        return post
+            # Build mapping: tag_name -> tag_id
+            tag_id_map = {row.name: row.id for row in tag_rows}
+
+            # Insert post_tags
+            for tag_name in post.tag_names:
+                tag_id = tag_id_map.get(tag_name.root)
+                if tag_id:
+                    post_tag_stmt = insert(post_tags_table).values(
+                        post_id=post.id, tag_id=tag_id
+                    )
+                    await self.session.execute(post_tag_stmt)
+
+            await self.session.flush()
+            logfire.info("Post saved successfully", post_id=str(post.id))
+            return post
 
     async def delete(self, post_id: PostId) -> None:
         """Delete a post (hard delete)."""

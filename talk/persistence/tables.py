@@ -78,6 +78,25 @@ Index(
 )
 
 # ============================================================================
+# TAGS TABLE
+# ============================================================================
+tags_table = Table(
+    "tags",
+    metadata,
+    Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
+    Column("name", String(30), nullable=False, unique=True),
+    Column("description", String(200), nullable=False),
+    Column(
+        "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+    Column(
+        "updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+)
+
+Index("idx_tags_name", tags_table.c.name, unique=True)
+
+# ============================================================================
 # POSTS TABLE
 # ============================================================================
 posts_table = Table(
@@ -85,20 +104,6 @@ posts_table = Table(
     metadata,
     Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
     Column("title", String(300), nullable=False),
-    Column(
-        "type",
-        Enum(
-            "result",
-            "method",
-            "review",
-            "discussion",
-            "ask",
-            "tool",
-            name="post_type",
-            create_type=False,
-        ),
-        nullable=False,
-    ),
     Column("url", Text, nullable=True),
     Column("text", Text, nullable=True),
     Column(
@@ -115,19 +120,32 @@ posts_table = Table(
     ),
     Column("deleted_at", TIMESTAMP(timezone=True), nullable=True),
     CheckConstraint(
-        "(type IN ('result', 'method', 'review', 'tool') AND url IS NOT NULL) OR (type IN ('discussion', 'ask'))",
-        name="url_required_for_url_types",
-    ),
-    CheckConstraint(
-        "(type IN ('discussion', 'ask') AND text IS NOT NULL) OR (type IN ('result', 'method', 'review', 'tool'))",
-        name="text_required_for_text_types",
+        "(url IS NOT NULL OR text IS NOT NULL)",
+        name="url_or_text_required",
     ),
 )
 
 Index("idx_posts_created_at", posts_table.c.created_at.desc())
-Index("idx_posts_type", posts_table.c.type)
 Index("idx_posts_author_id", posts_table.c.author_id)
 Index("idx_posts_deleted_at", posts_table.c.deleted_at)
+
+# ============================================================================
+# POST_TAGS TABLE (junction table for many-to-many relationship)
+# ============================================================================
+post_tags_table = Table(
+    "post_tags",
+    metadata,
+    Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
+    Column("post_id", UUID, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False),
+    Column("tag_id", UUID, ForeignKey("tags.id", ondelete="RESTRICT"), nullable=False),
+    Column(
+        "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+    UniqueConstraint("post_id", "tag_id", name="uq_post_tag"),
+)
+
+Index("idx_post_tags_post_id", post_tags_table.c.post_id)
+Index("idx_post_tags_tag_id", post_tags_table.c.tag_id)
 
 # ============================================================================
 # COMMENTS TABLE

@@ -10,6 +10,7 @@ from talk.domain.repository import (
     UserRepository,
     VoteRepository,
 )
+from talk.domain.repository.tag import TagRepository
 from talk.persistence.repository.inmemory import (
     InMemoryCommentRepository,
     InMemoryInviteRepository,
@@ -18,6 +19,7 @@ from talk.persistence.repository.inmemory import (
     InMemoryUserRepository,
     InMemoryVoteRepository,
 )
+from talk.persistence.repository.inmemory.tag import InMemoryTagRepository
 from talk.util.di.infrastructure.persistence import PersistenceProvider
 
 
@@ -58,3 +60,8 @@ class MockPersistenceProvider(PersistenceProvider):
     def get_invite_repository(self) -> InviteRepository:
         """Provide in-memory invite repository."""
         return InMemoryInviteRepository()
+
+    @provide(scope=Scope.REQUEST)
+    def get_tag_repository(self) -> TagRepository:
+        """Provide in-memory tag repository."""
+        return InMemoryTagRepository()

@@ -1,6 +1,6 @@
 """Post domain service."""
 
-import logging
+import logfire
 from datetime import datetime
 
 from talk.domain.model.post import Post
@@ -8,8 +8,6 @@ from talk.domain.repository import PostRepository
 from talk.domain.value import PostId
 
 from .base import Service
-
-logger = logging.getLogger(__name__)
 
 
 class PostService(Service):
@@ -23,6 +21,22 @@ class PostService(Service):
         """
         self.post_repository = post_repository
 
+    async def save_post(self, post: Post) -> Post:
+        """Save a post.
+
+        Args:
+            post: Post to save
+
+        Returns:
+            Saved post
+        """
+        with logfire.span(
+            "post_service.save_post", post_id=str(post.id), title=post.title
+        ):
+            saved = await self.post_repository.save(post)
+            logfire.info("Post saved", post_id=str(saved.id))
+            return saved
+
     async def get_post_by_id(self, post_id: PostId) -> Post | None:
         """Get a post by ID.
 
@@ -32,15 +46,15 @@ class PostService(Service):
         Returns:
             Post if found, None otherwise
         """
-        logger.debug(f"Looking up post in repository: post_id={post_id}")
-        post = await self.post_repository.find_by_id(post_id)
+        with logfire.span("post_service.get_post_by_id", post_id=str(post_id)):
+            post = await self.post_repository.find_by_id(post_id)
 
-        if post:
-            logger.info(f"Post found: post_id={post_id}, title='{post.title}'")
-        else:
-            logger.warning(f"Post not found in repository: post_id={post_id}")
+            if post:
+                logfire.info("Post found", post_id=str(post_id), title=post.title)
+            else:
+                logfire.warn("Post not found", post_id=str(post_id))
 
-        return post
+            return post
 
     async def increment_comment_count(self, post_id: PostId) -> Post:
         """Increment a post's comment count.
@@ -54,19 +68,29 @@ class PostService(Service):
         Raises:
             ValueError: If post not found
         """
-        post = await self.post_repository.find_by_id(post_id)
-        if not post:
-            raise ValueError("Post not found")
+        with logfire.span("post_service.increment_comment_count", post_id=str(post_id)):
+            post = await self.post_repository.find_by_id(post_id)
+            if not post:
+                logfire.error(
+                    "Post not found for comment count increment", post_id=str(post_id)
+                )
+                raise ValueError("Post not found")
 
-        # Update comment count (domain models are immutable)
-        updated_post = post.model_copy(
-            update={
-                "comment_count": post.comment_count + 1,
-                "updated_at": datetime.now(),
-            }
-        )
+            # Update comment count (domain models are immutable)
+            updated_post = post.model_copy(
+                update={
+                    "comment_count": post.comment_count + 1,
+                    "updated_at": datetime.now(),
+                }
+            )
 
-        return await self.post_repository.save(updated_post)
+            saved = await self.post_repository.save(updated_post)
+            logfire.info(
+                "Comment count incremented",
+                post_id=str(post_id),
+                new_count=saved.comment_count,
+            )
+            return saved
 
     async def increment_points(self, post_id: PostId) -> None:
         """Atomically increment post points.
@@ -76,7 +100,9 @@ class PostService(Service):
         Args:
             post_id: Post ID
         """
-        await self.post_repository.increment_points(post_id)
+        with logfire.span("post_service.increment_points", post_id=str(post_id)):
+            await self.post_repository.increment_points(post_id)
+            logfire.info("Post points incremented", post_id=str(post_id))
 
     async def decrement_points(self, post_id: PostId) -> None:
         """Atomically decrement post points (minimum 1).
@@ -86,4 +112,6 @@ class PostService(Service):
         Args:
             post_id: Post ID
         """
-        await self.post_repository.decrement_points(post_id)
+        with logfire.span("post_service.decrement_points", post_id=str(post_id)):
+            await self.post_repository.decrement_points(post_id)
+            logfire.info("Post points decremented", post_id=str(post_id))

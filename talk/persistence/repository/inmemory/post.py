@@ -4,7 +4,8 @@ from typing import Optional
 
 from talk.domain.model.post import Post
 from talk.domain.repository.post import PostRepository, PostSortOrder
-from talk.domain.value import PostId, PostType, UserId
+from talk.domain.value import PostId, UserId
+from talk.domain.value.types import TagName
 
 
 class InMemoryPostRepository(PostRepository):
@@ -20,7 +21,7 @@ class InMemoryPostRepository(PostRepository):
     async def find_all(
         self,
         sort: PostSortOrder = PostSortOrder.RECENT,
-        post_type: Optional[PostType] = None,
+        tag: Optional[TagName] = None,
         include_deleted: bool = False,
         limit: int = 30,
         offset: int = 0,
@@ -28,9 +29,9 @@ class InMemoryPostRepository(PostRepository):
         """Find posts with filtering and pagination."""
         posts = [p for p in self._posts.values()]
 
-        # Filter by type
-        if post_type is not None:
-            posts = [p for p in posts if p.type == post_type]
+        # Filter by tag
+        if tag is not None:
+            posts = [p for p in posts if tag in p.tag_names]
 
         # Filter deleted
         if not include_deleted:
@@ -44,6 +45,24 @@ class InMemoryPostRepository(PostRepository):
 
         # Paginate
         return posts[offset : offset + limit]
+
+    async def count(
+        self,
+        tag: Optional[TagName] = None,
+        include_deleted: bool = False,
+    ) -> int:
+        """Count posts matching the given filters."""
+        posts = [p for p in self._posts.values()]
+
+        # Filter by tag
+        if tag is not None:
+            posts = [p for p in posts if tag in p.tag_names]
+
+        # Filter deleted
+        if not include_deleted:
+            posts = [p for p in posts if p.deleted_at is None]
+
+        return len(posts)
 
     async def find_by_author(
         self,
@@ -91,7 +110,7 @@ class InMemoryPostRepository(PostRepository):
             self._posts[post_id] = Post(
                 id=post.id,
                 title=post.title,
-                type=post.type,
+                tag_names=post.tag_names,
                 author_id=post.author_id,
                 author_handle=post.author_handle,
                 url=post.url,
@@ -111,7 +130,7 @@ class InMemoryPostRepository(PostRepository):
             self._posts[post_id] = Post(
                 id=post.id,
                 title=post.title,
-                type=post.type,
+                tag_names=post.tag_names,
                 author_id=post.author_id,
                 author_handle=post.author_handle,
                 url=post.url,

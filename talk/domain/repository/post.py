@@ -5,7 +5,8 @@ from enum import Enum
 from typing import List, Optional
 
 from talk.domain.model.post import Post
-from talk.domain.value import PostId, PostType, UserId
+from talk.domain.value import PostId, UserId
+from talk.domain.value.types import TagName
 
 
 class PostSortOrder(str, Enum):
@@ -38,7 +39,7 @@ class PostRepository(ABC):
     async def find_all(
         self,
         sort: PostSortOrder = PostSortOrder.RECENT,
-        post_type: Optional[PostType] = None,
+        tag: Optional[TagName] = None,
         include_deleted: bool = False,
         limit: int = 30,
         offset: int = 0,
@@ -47,13 +48,30 @@ class PostRepository(ABC):
 
         Args:
             sort: Sort order (recent or active)
-            post_type: Filter by post type (None for all types)
+            tag: Filter by tag name (None for all tags)
             include_deleted: Whether to include soft-deleted posts
             limit: Maximum number of posts to return
             offset: Number of posts to skip
 
         Returns:
             List of posts matching the criteria
+        """
+        pass
+
+    @abstractmethod
+    async def count(
+        self,
+        tag: Optional[TagName] = None,
+        include_deleted: bool = False,
+    ) -> int:
+        """Count posts matching the given filters.
+
+        Args:
+            tag: Filter by tag name (None for all tags)
+            include_deleted: Whether to include soft-deleted posts
+
+        Returns:
+            Total number of posts matching the criteria
         """
         pass
 

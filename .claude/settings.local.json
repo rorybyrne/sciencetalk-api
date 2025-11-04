@@ -8,7 +8,8 @@
       "Bash(just fix:*)",
       "Bash(uv run pytest:*)",
       "Bash(uv run pyright:*)",
-      "Bash(just test:*)"
+      "Bash(just test:*)",
+      "Bash(uv run ruff:*)"
     ],
     "deny": [],
     "ask": []

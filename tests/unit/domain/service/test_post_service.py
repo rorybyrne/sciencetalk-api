@@ -8,7 +8,7 @@ import pytest
 from talk.domain.model.post import Post
 from talk.domain.service import PostService
 from talk.domain.value import PostId, UserId
-from talk.domain.value.types import Handle, PostType
+from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
 from tests.harness import create_env_fixture
 
@@ -31,7 +31,7 @@ class TestIncrementCommentCount:
 
         post = Post(
             id=post_id,
-            type=PostType.DISCUSSION,
+            tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
             title="Test Post",

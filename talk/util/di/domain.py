@@ -11,6 +11,7 @@ from talk.domain.repository import (
     UserRepository,
     VoteRepository,
 )
+from talk.domain.repository.tag import TagRepository
 from talk.domain.service import (
     AuthService,
     CommentService,
@@ -18,6 +19,7 @@ from talk.domain.service import (
     JWTService,
     OAuthClient,
     PostService,
+    TagService,
     UserIdentityService,
     UserService,
     VoteService,
@@ -98,3 +100,8 @@ class ProdDomainProvider(ProviderBase):
     ) -> UserIdentityService:
         """Provide user identity domain service."""
         return UserIdentityService(user_identity_repository=user_identity_repository)
+
+    @provide
+    def get_tag_service(self, tag_repository: TagRepository) -> TagService:
+        """Provide tag domain service."""
+        return TagService(tag_repository=tag_repository)

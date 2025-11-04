@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from talk.domain.repository import PostRepository, VoteRepository
-from talk.domain.value import PostId, PostType, UserId, VotableType
+from talk.domain.value import PostId, UserId, VotableType
 from talk.domain.value.types import Handle
 
 
@@ -23,7 +23,7 @@ class GetPostResponse(BaseModel):
 
     post_id: str
     title: str
-    type: PostType
+    tag_names: list[str]
     author_id: str
     author_handle: Handle
     url: str | None
@@ -82,7 +82,7 @@ class GetPostUseCase:
         return GetPostResponse(
             post_id=str(post.id),
             title=post.title,
-            type=post.type,
+            tag_names=[tag.root for tag in post.tag_names],
             author_id=str(post.author_id),
             author_handle=post.author_handle,
             url=post.url,

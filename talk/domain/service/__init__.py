@@ -6,6 +6,7 @@ from .comment_service import CommentService
 from .invite_service import InviteService
 from .jwt_service import JWTService
 from .post_service import PostService
+from .tag_service import TagService
 from .user_identity_service import UserIdentityService
 from .user_service import UserService
 from .vote_service import VoteService
@@ -18,6 +19,7 @@ __all__ = [
     "OAuthClient",
     "PostService",
     "Service",
+    "TagService",
     "UserIdentityService",
     "UserService",
     "VoteService",

@@ -12,7 +12,7 @@ from talk.application.usecase.comment.create_comment import (
 from talk.domain.model.post import Post
 from talk.domain.service import CommentService, PostService
 from talk.domain.value import PostId, UserId
-from talk.domain.value.types import Handle, PostType
+from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
 from tests.harness import create_env_fixture
 
@@ -43,7 +43,7 @@ class TestCreateCommentUseCase:
 
         post = Post(
             id=post_id,
-            type=PostType.DISCUSSION,
+            tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
             title="Test Post",

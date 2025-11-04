@@ -10,7 +10,7 @@ from talk.domain.model.post import Post
 from talk.domain.model.comment import Comment
 from talk.domain.service import VoteService
 from talk.domain.value import CommentId, PostId, UserId, VotableType
-from talk.domain.value.types import Handle, PostType
+from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
 from talk.persistence.repository.comment import CommentRepository
 from tests.harness import create_env_fixture
@@ -37,7 +37,7 @@ class TestUpvoteUseCase:
         # Create post first
         post = Post(
             id=post_id,
-            type=PostType.DISCUSSION,
+            tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
             title="Test Post",

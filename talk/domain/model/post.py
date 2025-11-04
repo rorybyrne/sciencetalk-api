@@ -1,7 +1,6 @@
 """Post aggregate root.
 
-Posts are the primary content type in Science Talk, with 6 distinct types
-for different kinds of scientific communication.
+Posts are the primary content type in Science Talk, categorized by tags.
 """
 
 from datetime import datetime
@@ -10,25 +9,28 @@ from typing import Optional
 from pydantic import Field, model_validator
 
 from talk.domain.model.common import DomainModel
-from talk.domain.value import PostId, PostType, UserId
+from talk.domain.value import PostId, TagName, UserId
 from talk.domain.value.types import Handle
 
 
 class Post(DomainModel):
     """Post aggregate root.
 
-    Represents a scientific post with specific type-based validation rules:
-    - URL-based types (result, method, review, tool): require URL
-    - Text-based types (discussion, ask): require text content
+    Represents a scientific post with flexible content types:
+    - Link posts: Have URL (can also have text as description)
+    - Text posts: Have text content (no URL required)
+    - Hybrid posts: Have both URL and text
+
+    Posts are categorized by 1-5 tags for discovery and filtering.
     """
 
     id: PostId
     title: str = Field(min_length=1, max_length=300)
-    type: PostType
     author_id: UserId
     author_handle: Handle
     url: Optional[str] = None
     text: Optional[str] = Field(default=None, max_length=10000)
+    tag_names: list[TagName] = Field(min_length=1, max_length=5)  # 1-5 tags required
     points: int = Field(default=1, ge=1)
     comment_count: int = Field(default=0, ge=0)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -36,10 +38,8 @@ class Post(DomainModel):
     deleted_at: Optional[datetime] = None
 
     @model_validator(mode="after")
-    def validate_post_type_content(self) -> "Post":
-        """Validate that URL or text is provided based on post type."""
-        if self.type.requires_url and not self.url:
-            raise ValueError(f"URL is required for {self.type.value} posts")
-        if self.type.requires_text and not self.text:
-            raise ValueError(f"Text is required for {self.type.value} posts")
+    def validate_has_content(self) -> "Post":
+        """Validate that URL or text content is provided."""
+        if not self.url and not self.text:
+            raise ValueError("Post must have either URL or text content")
         return self

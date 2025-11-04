@@ -14,6 +14,7 @@ from talk.domain.repository import (
     UserRepository,
     VoteRepository,
 )
+from talk.domain.repository.tag import TagRepository
 from talk.persistence.database import create_engine, create_session_factory
 from talk.persistence.repository import (
     PostgresCommentRepository,
@@ -23,6 +24,7 @@ from talk.persistence.repository import (
     PostgresUserRepository,
     PostgresVoteRepository,
 )
+from talk.persistence.repository.tag import PostgresTagRepository
 from talk.util.di.base import ProviderBase
 from talk.util.observability import instrument_sqlalchemy
 
@@ -103,3 +105,8 @@ class ProdPersistenceProvider(PersistenceProvider):
     def get_invite_repository(self, session: AsyncSession) -> InviteRepository:
         """Provide Invite repository."""
         return PostgresInviteRepository(session)
+
+    @provide(scope=Scope.REQUEST)
+    def get_tag_repository(self, session: AsyncSession) -> TagRepository:
+        """Provide Tag repository."""
+        return PostgresTagRepository(session)

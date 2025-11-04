@@ -1,6 +1,6 @@
 """Post routes."""
 
-import logging
+import logfire
 from uuid import UUID
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
@@ -20,11 +20,9 @@ from talk.application.usecase.post import (
     ListPostsResponse,
     ListPostsUseCase,
 )
+from talk.domain.error import DomainError
 from talk.domain.repository.post import PostSortOrder
-from talk.domain.value import PostType
 from talk.util.jwt import JWTError
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/posts", tags=["posts"], route_class=DishkaRoute)
 
@@ -33,7 +31,7 @@ class CreatePostAPIRequest(BaseModel):
     """API request for creating a post."""
 
     title: str = Field(min_length=1, max_length=300)
-    type: PostType
+    tag_names: list[str] = Field(min_length=1, max_length=5)
     url: str | None = None
     text: str | None = Field(default=None, max_length=10000)
 
@@ -87,14 +85,9 @@ async def create_post(
 
     # Create post
     try:
-        logger.info(
-            f"Creating post: title='{request.title}', type={request.type}, "
-            f"author={user.handle}"
-        )
-
         use_case_request = CreatePostRequest(
             title=request.title,
-            type=request.type,
+            tag_names=request.tag_names,
             author_id=user.user_id,
             author_handle=user.handle,
             url=request.url,
@@ -102,17 +95,22 @@ async def create_post(
         )
 
         result = await create_post_use_case.execute(use_case_request)
-        logger.info(f"Post created successfully: post_id={result.post_id}")
         return result
 
+    except DomainError as e:
+        logfire.warn("Post creation domain error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except ValueError as e:
-        logger.error(f"Post creation validation error: {str(e)}")
+        logfire.warn("Post creation validation error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
-        logger.exception(f"Unexpected error creating post: {str(e)}")
+        logfire.error("Unexpected error creating post", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create post",
@@ -140,8 +138,6 @@ async def get_post(
     Raises:
         HTTPException: If post not found or invalid UUID
     """
-    logger.info(f"Fetching post: post_id={post_id}")
-
     # Get current user ID if authenticated
     user_id = None
     if auth_token:
@@ -161,19 +157,20 @@ async def get_post(
         )
 
         if not post:
-            logger.warning(f"Post not found: post_id={post_id}")
+            logfire.warn("Post not found", post_id=str(post_id))
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Post not found",
             )
 
-        logger.debug(f"Post found: post_id={post_id}, title='{post.title}'")
         return post
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Unexpected error fetching post {post_id}: {str(e)}")
+        logfire.error(
+            "Unexpected error fetching post", post_id=str(post_id), error=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch post",
@@ -185,7 +182,7 @@ async def list_posts(
     list_posts_use_case: FromDishka[ListPostsUseCase],
     get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
     sort: PostSortOrder = PostSortOrder.RECENT,
-    post_type: PostType | None = None,
+    tag: str | None = None,
     limit: int = 30,
     offset: int = 0,
     auth_token: str | None = Cookie(default=None),
@@ -196,7 +193,7 @@ async def list_posts(
         list_posts_use_case: List posts use case from DI
         get_current_user_use_case: Get current user use case from DI
         sort: Sort order (recent or active)
-        post_type: Filter by post type (optional)
+        tag: Filter by tag name (optional)
         limit: Maximum number of posts to return (1-100)
         offset: Number of posts to skip
         auth_token: JWT token from cookie (optional)
@@ -204,10 +201,6 @@ async def list_posts(
     Returns:
         List of posts
     """
-    logger.info(
-        f"Listing posts: sort={sort}, post_type={post_type}, "
-        f"limit={limit}, offset={offset}"
-    )
 
     # Get current user ID if authenticated
     user_id = None
@@ -236,7 +229,7 @@ async def list_posts(
 
     request = ListPostsRequest(
         sort=sort,
-        post_type=post_type,
+        tag=tag,
         limit=limit,
         offset=offset,
         user_id=user_id,
@@ -244,15 +237,16 @@ async def list_posts(
 
     try:
         result = await list_posts_use_case.execute(request)
-        has_more = (result.offset + len(result.posts)) < result.total
-        logger.info(
-            f"Listed posts: returned {len(result.posts)} posts, "
-            f"total={result.total}, offset={result.offset}, has_more={has_more}"
-        )
         return result
 
+    except ValueError as e:
+        logfire.warn("List posts validation error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
-        logger.exception(f"Unexpected error listing posts: {str(e)}")
+        logfire.error("Unexpected error listing posts", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list posts",

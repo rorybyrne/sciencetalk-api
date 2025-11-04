@@ -4,6 +4,7 @@ from talk.domain.value.identifiers import (
     CommentId,
     InviteId,
     PostId,
+    TagId,
     UserId,
     UserIdentityId,
     VoteId,
@@ -15,7 +16,7 @@ from talk.domain.value.types import (
     InviteStatus,
     InviteToken,
     OAuthProviderInfo,
-    PostType,
+    TagName,
     VotableType,
     VoteType,
 )
@@ -28,8 +29,9 @@ __all__ = [
     "CommentId",
     "VoteId",
     "InviteId",
+    "TagId",
     # Types
-    "PostType",
+    "TagName",
     "VoteType",
     "VotableType",
     "InviteStatus",

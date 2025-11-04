@@ -15,6 +15,7 @@ from talk.application.usecase.post import (
     GetPostUseCase,
     ListPostsUseCase,
 )
+from talk.application.usecase.tag import ListTagsUseCase
 from talk.application.usecase.user import GetUserProfileUseCase
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
 from talk.domain.repository import PostRepository, UserRepository, VoteRepository
@@ -24,6 +25,7 @@ from talk.domain.service import (
     InviteService,
     JWTService,
     PostService,
+    TagService,
     UserIdentityService,
     UserService,
     VoteService,
@@ -71,10 +73,10 @@ class ProdApplicationProvider(ProviderBase):
     # Post use cases
     @provide(scope=Scope.REQUEST)
     def get_create_post_use_case(
-        self, post_repository: PostRepository
+        self, post_service: PostService, tag_service: TagService
     ) -> CreatePostUseCase:
         """Provide create post use case."""
-        return CreatePostUseCase(post_repository=post_repository)
+        return CreatePostUseCase(post_service=post_service, tag_service=tag_service)
 
     @provide(scope=Scope.REQUEST)
     def get_get_post_use_case(
@@ -156,3 +158,9 @@ class ProdApplicationProvider(ProviderBase):
     ) -> GetUserProfileUseCase:
         """Provide get user profile use case."""
         return GetUserProfileUseCase(user_service=user_service)
+
+    # Tag use cases
+    @provide(scope=Scope.REQUEST)
+    def get_list_tags_use_case(self, tag_service: TagService) -> ListTagsUseCase:
+        """Provide list tags use case."""
+        return ListTagsUseCase(tag_service=tag_service)
