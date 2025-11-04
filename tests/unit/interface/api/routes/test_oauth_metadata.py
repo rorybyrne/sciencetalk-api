@@ -69,7 +69,9 @@ class TestGetOAuthClientMetadata:
 
         metadata = get_oauth_client_metadata(settings)
 
-        assert metadata.redirect_uris == ["https://talk.example.com/auth/callback"]
+        assert metadata.redirect_uris == [
+            "https://talk.example.com/auth/callback/bluesky"
+        ]
 
     def test_grant_types_includes_authorization_code(self):
         """Grant types should include authorization_code."""

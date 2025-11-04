@@ -74,11 +74,10 @@ class TestAuthFlow:
 
         # Act
         response = client.get(
-            "/auth/callback",
+            "/auth/callback/bluesky",
             params={
                 "code": "test_code",
                 "state": "test_state",
-                "provider": "bluesky",
                 "iss": "https://bsky.social",
             },
             follow_redirects=False,

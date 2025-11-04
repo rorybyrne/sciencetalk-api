@@ -36,5 +36,5 @@ class ProdBlueskyProvider(BlueskyProvider):
 
         return RealBlueskyOAuthClient(
             client_id=client_id,
-            redirect_uri=settings.auth.oauth_callback_url,
+            redirect_uri=settings.auth.bluesky_callback_url,
         )

@@ -39,5 +39,5 @@ class ProdTwitterProvider(TwitterProvider):
         return RealTwitterOAuthClient(
             client_id=settings.auth.twitter.client_id,
             client_secret=settings.auth.twitter.client_secret,
-            redirect_uri=settings.auth.oauth_callback_url,
+            redirect_uri=settings.auth.twitter_callback_url,
         )

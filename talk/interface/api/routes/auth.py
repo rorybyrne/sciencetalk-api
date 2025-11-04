@@ -121,29 +121,27 @@ async def initiate_login(
         )
 
 
-@router.get("/callback")
-async def login_callback(
+@router.get("/callback/bluesky")
+async def bluesky_callback(
     code: str,
     state: str,
-    provider: AuthProvider,
+    iss: str,
     login_use_case: FromDishka[LoginUseCase],
     settings: FromDishka[Settings],
-    iss: str | None = None,  # Optional - only for Bluesky
     invite_token: str | None = None,  # Optional - for invite links
 ):
-    """Handle multi-provider OAuth callback and complete login.
+    """Handle Bluesky OAuth callback and complete login.
 
-    This endpoint receives the redirect from the OAuth provider (Twitter or Bluesky)
-    after the user authenticates. It completes the OAuth flow, creates/updates
-    the user, issues a JWT cookie, and redirects to the frontend.
+    This endpoint receives the redirect from Bluesky after the user authenticates.
+    It completes the OAuth flow, creates/updates the user, issues a JWT cookie,
+    and redirects to the frontend.
 
     Args:
-        code: Authorization code from OAuth provider
+        code: Authorization code from Bluesky
         state: State parameter for session verification
-        provider: Which OAuth provider is completing the flow
+        iss: Issuer URL (AT Protocol requirement)
         login_use_case: Login use case from DI
         settings: Application settings from DI
-        iss: Issuer URL (Bluesky only, optional)
         invite_token: Optional invite token from URL state
 
     Returns:
@@ -153,16 +151,79 @@ async def login_callback(
         HTTPException: If login fails
 
     Example:
-        # Twitter callback
-        GET /auth/callback?code=abc123&state=xyz789&provider=twitter
-
-        # Bluesky callback
-        GET /auth/callback?code=abc123&state=xyz789&provider=bluesky&iss=https://bsky.social
+        GET /auth/callback/bluesky?code=abc123&state=xyz789&iss=https://bsky.social
 
         Redirects to: https://talk.amacrin.com/
         Sets cookie: auth_token
-          - Production: HttpOnly, Secure, SameSite=None, Domain=.amacrin.com
-          - Development: HttpOnly, SameSite=Lax
+    """
+    return await _handle_oauth_callback(
+        provider=AuthProvider.BLUESKY,
+        code=code,
+        state=state,
+        iss=iss,
+        invite_token=invite_token,
+        login_use_case=login_use_case,
+        settings=settings,
+    )
+
+
+@router.get("/callback/twitter")
+async def twitter_callback(
+    code: str,
+    state: str,
+    login_use_case: FromDishka[LoginUseCase],
+    settings: FromDishka[Settings],
+    invite_token: str | None = None,  # Optional - for invite links
+):
+    """Handle Twitter OAuth callback and complete login.
+
+    This endpoint receives the redirect from Twitter after the user authenticates.
+    It completes the OAuth flow, creates/updates the user, issues a JWT cookie,
+    and redirects to the frontend.
+
+    Args:
+        code: Authorization code from Twitter
+        state: State parameter for session verification
+        login_use_case: Login use case from DI
+        settings: Application settings from DI
+        invite_token: Optional invite token from URL state
+
+    Returns:
+        HTTP 302 redirect to frontend with Set-Cookie header
+
+    Raises:
+        HTTPException: If login fails
+
+    Example:
+        GET /auth/callback/twitter?code=abc123&state=xyz789
+
+        Redirects to: https://talk.amacrin.com/
+        Sets cookie: auth_token
+    """
+    return await _handle_oauth_callback(
+        provider=AuthProvider.TWITTER,
+        code=code,
+        state=state,
+        iss=None,
+        invite_token=invite_token,
+        login_use_case=login_use_case,
+        settings=settings,
+    )
+
+
+async def _handle_oauth_callback(
+    provider: AuthProvider,
+    code: str,
+    state: str,
+    iss: str | None,
+    invite_token: str | None,
+    login_use_case: LoginUseCase,
+    settings: Settings,
+):
+    """Shared OAuth callback handler for all providers.
+
+    This internal function handles the common OAuth callback logic
+    after provider-specific parameters have been extracted.
     """
     logger.info(
         f"OAuth callback received: provider={provider.value}, state={state}, iss={iss}"

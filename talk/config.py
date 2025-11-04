@@ -38,8 +38,9 @@ class AuthSettings(BaseModel):
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
 
-    # OAuth callback URL (set by Settings validator from api.base_url)
-    oauth_callback_url: str = "http://localhost:8000/auth/callback"
+    # OAuth callback URLs (set by Settings validator from api.base_url)
+    bluesky_callback_url: str = "http://localhost:8000/auth/callback/bluesky"
+    twitter_callback_url: str = "http://localhost:8000/auth/callback/twitter"
 
     # Provider-specific OAuth settings
     bluesky: BlueskyOAuthSettings = BlueskyOAuthSettings()
@@ -169,8 +170,9 @@ class Settings(BaseSettings):
             frontend_host=self.frontend_host,
         )
 
-        # Set OAuth callback URL from api.base_url
-        self.auth.oauth_callback_url = f"{self.api.base_url}/auth/callback"
+        # Set OAuth callback URLs from api.base_url
+        self.auth.bluesky_callback_url = f"{self.api.base_url}/auth/callback/bluesky"
+        self.auth.twitter_callback_url = f"{self.api.base_url}/auth/callback/twitter"
 
         return self
 
