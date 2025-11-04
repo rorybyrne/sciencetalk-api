@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 
 # Metadata object for all tables
@@ -86,6 +87,13 @@ tags_table = Table(
     Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
     Column("name", String(30), nullable=False, unique=True),
     Column("description", String(200), nullable=False),
+    Column(
+        "type",
+        postgresql.ENUM(
+            "science", "applied", "content", "meta", name="tag_type", create_type=False
+        ),
+        nullable=False,
+    ),
     Column(
         "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     ),

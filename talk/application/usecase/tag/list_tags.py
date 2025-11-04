@@ -5,6 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from talk.domain.model.tag import TagType
 from talk.domain.service import TagService
 
 
@@ -13,6 +14,7 @@ class TagItem(BaseModel):
 
     name: str
     description: str
+    type: TagType
     created_at: datetime
 
 
@@ -65,6 +67,7 @@ class ListTagsUseCase:
                 TagItem(
                     name=tag.name.root,
                     description=tag.description,
+                    type=tag.type,
                     created_at=tag.created_at,
                 )
                 for tag in tags

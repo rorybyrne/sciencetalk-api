@@ -59,6 +59,14 @@ def upgrade() -> None:
         END $$;
     """)
 
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE tag_type AS ENUM ('science', 'applied', 'content', 'meta');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+
     # ========================================================================
     # USERS table (provider-agnostic)
     # ========================================================================
@@ -151,6 +159,18 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(30), nullable=False),
         sa.Column("description", sa.String(200), nullable=False),
+        sa.Column(
+            "type",
+            postgresql.ENUM(
+                "science",
+                "applied",
+                "content",
+                "meta",
+                name="tag_type",
+                create_type=False,
+            ),
+            nullable=False,
+        ),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -452,6 +472,60 @@ def upgrade() -> None:
         FOR EACH ROW EXECUTE FUNCTION update_comment_path()
     """)
 
+    # ========================================================================
+    # SEED TAGS
+    # ========================================================================
+    tags_data = [
+        # science (10 tags) - Core research disciplines
+        ("biology", "Biological sciences, life sciences research", "science"),
+        ("chemistry", "Chemical research, materials science", "science"),
+        ("physics", "Physical sciences, quantum, astrophysics", "science"),
+        ("computer-science", "CS research, algorithms, theory", "science"),
+        ("mathematics", "Pure and applied mathematics", "science"),
+        ("engineering", "Engineering disciplines, systems design", "science"),
+        ("ai-ml", "Artificial intelligence, machine learning", "science"),
+        ("neuroscience", "Brain research, cognitive science", "science"),
+        ("energy", "Energy technology, fusion, batteries, climate", "science"),
+        ("robotics", "Automation, embodied AI, hardware", "science"),
+        # applied (7 tags) - Building/making things
+        ("startups", "Company building, commercialization, ventures", "applied"),
+        ("software", "Scientific software, computational tools", "applied"),
+        ("hardware", "Lab equipment, instrumentation, sensors", "applied"),
+        ("metascience", "Science of science, research on research", "applied"),
+        ("design", "Product design, experimental design, systems design", "applied"),
+        ("open-science", "Open access, open data, open protocols", "applied"),
+        ("ux", "User experience, user research, design research", "applied"),
+        # content (6 tags) - Post format
+        ("tool", "Software tools, datasets, resources", "content"),
+        ("result", "Research findings, experiments, data", "content"),
+        ("method", "Protocols, techniques, approaches", "content"),
+        ("question", "Questions for the community", "content"),
+        ("discussion", "Debates, ideas, opinions", "content"),
+        ("essay", "Long-form writing, think pieces", "content"),
+        # meta (3 tags) - Philosophy/social studies of science
+        ("philosophy", "Philosophy of science, epistemology", "meta"),
+        ("anthropology", "Ethnography, STS, lab studies", "meta"),
+        ("history", "History of science, historical analysis", "meta"),
+    ]
+
+    tags_table = sa.table(
+        "tags",
+        sa.column("name", sa.String),
+        sa.column("description", sa.String),
+        sa.column(
+            "type",
+            postgresql.ENUM("science", "applied", "content", "meta", name="tag_type"),
+        ),
+    )
+
+    op.bulk_insert(
+        tags_table,
+        [
+            {"name": name, "description": description, "type": tag_type}
+            for name, description, tag_type in tags_data
+        ],
+    )
+
 
 def downgrade() -> None:
     """Downgrade schema."""
@@ -472,11 +546,14 @@ def downgrade() -> None:
     op.drop_table("invites")
     op.drop_table("votes")
     op.drop_table("comments")
+    op.drop_table("post_tags")
     op.drop_table("posts")
+    op.drop_table("tags")
     op.drop_table("user_identities")
     op.drop_table("users")
 
     # Drop ENUM types
+    op.execute("DROP TYPE IF EXISTS tag_type")
     op.execute("DROP TYPE IF EXISTS invite_status")
     op.execute("DROP TYPE IF EXISTS vote_type")
     op.execute("DROP TYPE IF EXISTS votable_type")

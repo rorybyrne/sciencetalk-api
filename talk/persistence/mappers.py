@@ -106,10 +106,13 @@ def row_to_tag(row: Dict[str, Any]) -> Tag:
     Returns:
         Tag domain model
     """
+    from talk.domain.model.tag import TagType
+
     return Tag(
         id=TagId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
         name=TagName(row["name"]),
         description=row["description"],
+        type=TagType(row["type"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
