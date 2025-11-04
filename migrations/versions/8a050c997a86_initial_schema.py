@@ -1,11 +1,12 @@
 """initial_schema
 
 Create the foundational schema for Science Talk:
-- Users (authenticated via AT Protocol/Bluesky)
+- Users (provider-agnostic authentication)
+- User Identities (multi-provider authentication: Twitter, Bluesky)
 - Posts (6 types: result, method, review, discussion, ask, tool)
 - Comments (nested/threaded with unlimited depth)
 - Votes (upvote-only system)
-- Invites (invite-only user onboarding)
+- Invites (multi-provider invite-only user onboarding)
 
 Revision ID: 8a050c997a86
 Revises:
@@ -69,7 +70,7 @@ def upgrade() -> None:
     """)
 
     # ========================================================================
-    # USERS table
+    # USERS table (provider-agnostic)
     # ========================================================================
     op.create_table(
         "users",
@@ -79,10 +80,10 @@ def upgrade() -> None:
             server_default=sa.text("uuid_generate_v4()"),
             nullable=False,
         ),
-        sa.Column("bluesky_did", sa.String(255), nullable=False),
-        sa.Column("handle", sa.String(255), nullable=False),
-        sa.Column("display_name", sa.String(255), nullable=True),
+        sa.Column("handle", sa.String(255), nullable=False),  # Username
         sa.Column("avatar_url", sa.Text(), nullable=True),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("karma", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("invite_quota", sa.Integer(), nullable=False, server_default="5"),
         sa.Column(
@@ -98,10 +99,54 @@ def upgrade() -> None:
             server_default=sa.text("NOW()"),
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("bluesky_did"),
     )
-    op.create_index("idx_users_bluesky_did", "users", ["bluesky_did"])
     op.create_index("idx_users_handle", "users", ["handle"])
+    op.create_index("idx_users_email", "users", ["email"])
+
+    # ========================================================================
+    # USER_IDENTITIES table (multi-provider authentication)
+    # ========================================================================
+    op.create_table(
+        "user_identities",
+        sa.Column(
+            "id",
+            sa.UUID(),
+            server_default=sa.text("uuid_generate_v4()"),
+            nullable=False,
+        ),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("provider", sa.String(50), nullable=False),  # 'bluesky', 'twitter'
+        sa.Column(
+            "provider_user_id", sa.String(255), nullable=False
+        ),  # DID, username, etc.
+        sa.Column("provider_handle", sa.String(255), nullable=False),
+        sa.Column("provider_email", sa.String(255), nullable=True),
+        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=sa.text("NOW()"),
+        ),
+        sa.Column("last_login_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "provider", "provider_user_id", name="uq_provider_identity"
+        ),
+    )
+    op.create_index("idx_user_identities_user_id", "user_identities", ["user_id"])
+    op.create_index(
+        "idx_user_identities_provider",
+        "user_identities",
+        ["provider", "provider_user_id"],
+    )
 
     # ========================================================================
     # POSTS table
@@ -255,7 +300,7 @@ def upgrade() -> None:
     op.create_index("idx_votes_votable", "votes", ["votable_type", "votable_id"])
 
     # ========================================================================
-    # INVITES table
+    # INVITES table (multi-provider)
     # ========================================================================
     op.create_table(
         "invites",
@@ -266,8 +311,13 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("inviter_id", sa.UUID(), nullable=False),
+        sa.Column("provider", sa.String(50), nullable=False),  # 'bluesky', 'twitter'
         sa.Column("invitee_handle", sa.String(255), nullable=False),
-        sa.Column("invitee_did", sa.String(255), nullable=False),
+        sa.Column(
+            "invitee_provider_id", sa.String(255), nullable=False
+        ),  # DID, username, etc.
+        sa.Column("invitee_name", sa.String(255), nullable=True),
+        sa.Column("invite_token", sa.String(255), nullable=False, unique=True),
         sa.Column(
             "status",
             postgresql.ENUM(
@@ -291,16 +341,19 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # Critical index for login check - must be fast (DID is primary matching)
+    # Critical index for login check - must be fast (provider + ID matching)
     op.create_index(
-        "idx_invites_invitee_did_status", "invites", ["invitee_did", "status"]
+        "idx_invites_provider_identity_status",
+        "invites",
+        ["provider", "invitee_provider_id", "status"],
     )
     op.create_index("idx_invites_inviter_id", "invites", ["inviter_id"])
+    op.create_index("idx_invites_token", "invites", ["invite_token"])
 
-    # Partial unique constraint: only one pending invite per DID
+    # Partial unique constraint: only one pending invite per provider identity
     op.execute("""
-        CREATE UNIQUE INDEX idx_invites_unique_pending_did
-        ON invites (invitee_did)
+        CREATE UNIQUE INDEX idx_invites_unique_pending_provider_identity
+        ON invites (provider, invitee_provider_id)
         WHERE status = 'pending'
     """)
 
@@ -319,10 +372,16 @@ def upgrade() -> None:
         $$ LANGUAGE plpgsql
     """)
 
-    # Apply updated_at trigger to users, posts, and comments
+    # Apply updated_at trigger to users, user_identities, posts, and comments
     op.execute("""
         CREATE TRIGGER update_users_updated_at
         BEFORE UPDATE ON users
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    """)
+
+    op.execute("""
+        CREATE TRIGGER update_user_identities_updated_at
+        BEFORE UPDATE ON user_identities
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
     """)
 
@@ -372,6 +431,9 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS set_comment_path ON comments")
     op.execute("DROP TRIGGER IF EXISTS update_comments_updated_at ON comments")
     op.execute("DROP TRIGGER IF EXISTS update_posts_updated_at ON posts")
+    op.execute(
+        "DROP TRIGGER IF EXISTS update_user_identities_updated_at ON user_identities"
+    )
     op.execute("DROP TRIGGER IF EXISTS update_users_updated_at ON users")
 
     # Drop trigger functions
@@ -383,6 +445,7 @@ def downgrade() -> None:
     op.drop_table("votes")
     op.drop_table("comments")
     op.drop_table("posts")
+    op.drop_table("user_identities")
     op.drop_table("users")
 
     # Drop ENUM types

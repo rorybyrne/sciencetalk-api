@@ -3,7 +3,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from talk.interface.api.app import app
+from talk.interface.api.app import create_app
+from talk.util.di.container import setup_di
+from tests.di import build_test_container
 from tests.harness import create_env_fixture
 
 # E2E test fixture
@@ -12,19 +14,26 @@ e2e_env = create_env_fixture()
 
 @pytest.fixture
 def client():
-    """Create test client."""
-    return TestClient(app)
+    """Create test client with mock providers."""
+    # Create app instance
+    app_instance = create_app()
+
+    # Replace the production container with test container (all mocks by default)
+    test_container = build_test_container()
+    setup_di(app_instance, test_container)
+
+    return TestClient(app_instance)
 
 
 class TestAuthFlow:
     """End-to-end tests for OAuth authentication flow."""
 
     def test_initiate_login_with_handle(self, client):
-        """Should initiate login with Bluesky handle."""
+        """Should initiate login with Bluesky provider."""
         # Act
         response = client.post(
             "/auth/login",
-            json={"account": "alice.bsky.social"},
+            json={"provider": "bluesky"},
         )
 
         # Assert
@@ -32,14 +41,13 @@ class TestAuthFlow:
         data = response.json()
         assert "authorization_url" in data
         assert "mock=true" in data["authorization_url"]
-        assert "account=alice.bsky.social" in data["authorization_url"]
 
     def test_initiate_login_with_did(self, client):
-        """Should initiate login with DID."""
+        """Should initiate login with Twitter provider."""
         # Act
         response = client.post(
             "/auth/login",
-            json={"account": "did:plc:abc123"},
+            json={"provider": "twitter"},
         )
 
         # Assert
@@ -48,19 +56,15 @@ class TestAuthFlow:
         assert "authorization_url" in data
 
     def test_initiate_login_with_empty_body_uses_server_based_flow(self, client):
-        """Should accept empty body and use server-based flow with Bluesky default."""
+        """Should require provider in request body."""
         # Act
         response = client.post(
             "/auth/login",
             json={},
         )
 
-        # Assert - Should succeed with server-based flow (Bluesky default)
-        assert response.status_code == 200
-        data = response.json()
-        assert "authorization_url" in data
-        # Server-based flow should include "server=" in mock URL
-        assert "server=" in data["authorization_url"]
+        # Assert - Should fail validation (provider is required)
+        assert response.status_code == 422
 
     def test_callback_redirects_to_frontend(self, client, e2e_env):
         """Should handle callback and redirect to frontend."""
@@ -74,6 +78,7 @@ class TestAuthFlow:
             params={
                 "code": "test_code",
                 "state": "test_state",
+                "provider": "bluesky",
                 "iss": "https://bsky.social",
             },
             follow_redirects=False,
@@ -81,11 +86,11 @@ class TestAuthFlow:
 
         # Assert
         # Since we're using a mock client, the callback will fail
-        # because there's no session for the state parameter
+        # because there's no invite for the mock user
         # The important thing is that it tries to redirect with an error
         assert response.status_code == 302
         assert "Location" in response.headers
-        # Should redirect to error page since session won't exist
+        # Should redirect to error page since no invite exists
         assert "/auth/error" in response.headers["Location"]
 
     def test_logout_clears_cookie(self, client):

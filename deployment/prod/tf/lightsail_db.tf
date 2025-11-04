@@ -21,7 +21,7 @@ resource "aws_lightsail_database" "main" {
   preferred_maintenance_window = "sun:04:00-sun:05:00"
 
   # Important: Create final snapshot before deletion
-  skip_final_snapshot = false
+  skip_final_snapshot = true
   final_snapshot_name = "${var.project_name}-final-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = {

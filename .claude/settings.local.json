@@ -3,7 +3,12 @@
     "allow": [
       "WebFetch(domain:docs.bsky.app)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(just lint:*)",
+      "Bash(just fix:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run pyright:*)",
+      "Bash(just test:*)"
     ],
     "deny": [],
     "ask": []

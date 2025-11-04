@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import User
 from talk.domain.repository import UserRepository
-from talk.domain.value import BlueskyDID, Handle, UserId
+from talk.domain.value import AuthProvider, UserId
+from talk.domain.value.types import Handle
 from talk.persistence.mappers import row_to_user, user_to_dict
-from talk.persistence.tables import users_table
+from talk.persistence.tables import user_identities_table, users_table
 
 
 class PostgresUserRepository(UserRepository):
@@ -24,28 +25,85 @@ class PostgresUserRepository(UserRepository):
         self.session = session
 
     async def find_by_id(self, user_id: UserId) -> Optional[User]:
-        """Find a user by ID."""
+        """Find a user by ID.
+
+        Args:
+            user_id: User ID to look up
+
+        Returns:
+            User if found, None otherwise
+        """
         stmt = select(users_table).where(users_table.c.id == user_id)
         result = await self.session.execute(stmt)
-        row = result.fetchone()
-        return row_to_user(row._asdict()) if row else None
-
-    async def find_by_bluesky_did(self, bluesky_did: BlueskyDID) -> Optional[User]:
-        """Find a user by their Bluesky DID."""
-        stmt = select(users_table).where(users_table.c.bluesky_did == str(bluesky_did))
-        result = await self.session.execute(stmt)
-        row = result.fetchone()
-        return row_to_user(row._asdict()) if row else None
+        row = result.mappings().first()
+        return row_to_user(dict(row)) if row else None
 
     async def find_by_handle(self, handle: Handle) -> Optional[User]:
-        """Find a user by their handle."""
-        stmt = select(users_table).where(users_table.c.handle == str(handle))
+        """Find a user by their handle.
+
+        Args:
+            handle: Handle to search for
+
+        Returns:
+            User if found, None otherwise
+        """
+        stmt = select(users_table).where(users_table.c.handle == handle.root)
         result = await self.session.execute(stmt)
-        row = result.fetchone()
-        return row_to_user(row._asdict()) if row else None
+        row = result.mappings().first()
+        return row_to_user(dict(row)) if row else None
+
+    async def find_by_email(self, email: str) -> Optional[User]:
+        """Find a user by their email.
+
+        Args:
+            email: Email to search for
+
+        Returns:
+            User if found, None otherwise
+        """
+        stmt = select(users_table).where(users_table.c.email == email)
+        result = await self.session.execute(stmt)
+        row = result.mappings().first()
+        return row_to_user(dict(row)) if row else None
+
+    async def find_by_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> Optional[User]:
+        """Find a user by their external provider identity.
+
+        This is a convenience method that joins user_identities and users tables.
+
+        Args:
+            provider: The authentication provider
+            provider_user_id: The user's ID on that provider
+
+        Returns:
+            User if found, None otherwise
+        """
+        stmt = (
+            select(users_table)
+            .select_from(
+                users_table.join(
+                    user_identities_table,
+                    users_table.c.id == user_identities_table.c.user_id,
+                )
+            )
+            .where(user_identities_table.c.provider == provider.value)
+            .where(user_identities_table.c.provider_user_id == provider_user_id)
+        )
+        result = await self.session.execute(stmt)
+        row = result.mappings().first()
+        return row_to_user(dict(row)) if row else None
 
     async def save(self, user: User) -> User:
-        """Save a user (create or update)."""
+        """Save a user (create or update).
+
+        Args:
+            user: User to save
+
+        Returns:
+            Saved user
+        """
         # Check if user exists
         existing = await self.find_by_id(user.id)
 
@@ -67,16 +125,12 @@ class PostgresUserRepository(UserRepository):
         await self.session.flush()
         return user
 
-    async def exists_by_bluesky_did(self, bluesky_did: BlueskyDID) -> bool:
-        """Check if a user exists with the given Bluesky DID."""
-        stmt = select(users_table.c.id).where(
-            users_table.c.bluesky_did == str(bluesky_did)
-        )
-        result = await self.session.execute(stmt)
-        return result.first() is not None
-
     async def increment_karma(self, user_id: UserId) -> None:
-        """Atomically increment user's karma by 1."""
+        """Atomically increment user's karma by 1.
+
+        Args:
+            user_id: User ID to update
+        """
         stmt = (
             users_table.update()
             .where(users_table.c.id == user_id)
@@ -86,7 +140,11 @@ class PostgresUserRepository(UserRepository):
         await self.session.flush()
 
     async def decrement_karma(self, user_id: UserId) -> None:
-        """Atomically decrement user's karma by 1 (minimum 0)."""
+        """Atomically decrement user's karma by 1 (minimum 0).
+
+        Args:
+            user_id: User ID to update
+        """
         from sqlalchemy import case
 
         stmt = (

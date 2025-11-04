@@ -60,7 +60,7 @@ def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMeta
         client_name="Science Talk",
         client_uri=base_url,
         logo_uri=f"{base_url}/amacrin.svg",
-        redirect_uris=[f"{base_url}/auth/callback"],
+        redirect_uris=[settings.auth.oauth_callback_url],
         grant_types=[
             "authorization_code",
             "refresh_token",

@@ -10,7 +10,8 @@ from typing import Optional
 from pydantic import Field, model_validator
 
 from talk.domain.model.common import DomainModel
-from talk.domain.value import Handle, PostId, PostType, UserId
+from talk.domain.value import PostId, PostType, UserId
+from talk.domain.value.types import Handle
 
 
 class Post(DomainModel):

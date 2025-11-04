@@ -19,8 +19,9 @@ class GetUserProfileResponse(BaseModel):
 
     user_id: str
     handle: Handle
-    display_name: str | None
     avatar_url: str | None
+    email: str | None
+    bio: str | None
     karma: int
     created_at: datetime
 
@@ -63,8 +64,9 @@ class GetUserProfileUseCase:
         return GetUserProfileResponse(
             user_id=str(user.id),
             handle=user.handle,
-            display_name=user.display_name,
             avatar_url=user.avatar_url,
+            email=user.email,
+            bio=user.bio,
             karma=user.karma,
             created_at=user.created_at,
         )

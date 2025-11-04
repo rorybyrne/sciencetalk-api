@@ -4,7 +4,8 @@ from typing import Optional
 
 from talk.domain.model.user import User
 from talk.domain.repository.user import UserRepository
-from talk.domain.value import BlueskyDID, Handle, UserId
+from talk.domain.value import AuthProvider, UserId
+from talk.domain.value.types import Handle
 
 
 class InMemoryUserRepository(UserRepository):
@@ -17,10 +18,10 @@ class InMemoryUserRepository(UserRepository):
         """Find a user by ID."""
         return self._users.get(user_id)
 
-    async def find_by_bluesky_did(self, bluesky_did: BlueskyDID) -> Optional[User]:
-        """Find a user by their Bluesky DID."""
+    async def find_by_email(self, email: str) -> Optional[User]:
+        """Find a user by their email."""
         for user in self._users.values():
-            if user.bluesky_did == bluesky_did:
+            if user.email == email:
                 return user
         return None
 
@@ -31,21 +32,26 @@ class InMemoryUserRepository(UserRepository):
                 return user
         return None
 
+    async def find_by_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> Optional[User]:
+        """Find a user by their external provider identity.
+
+        Note: This is a convenience method that joins across UserIdentity.
+        In-memory implementation searches all users and their identities.
+        """
+        # This requires joining with user identities which we don't have access to here
+        # For in-memory implementation, we'll need to use UserIdentityRepository
+        # This method should not be called directly in tests - use UserIdentityRepository instead
+        raise NotImplementedError(
+            "In-memory UserRepository does not support find_by_provider_identity. "
+            "Use UserIdentityRepository.find_by_provider and then UserRepository.find_by_id"
+        )
+
     async def save(self, user: User) -> User:
         """Save or update a user."""
         self._users[user.id] = user
         return user
-
-    async def exists_by_bluesky_did(self, bluesky_did: BlueskyDID) -> bool:
-        """Check if a user exists with the given Bluesky DID."""
-        for user in self._users.values():
-            if user.bluesky_did == bluesky_did:
-                return True
-        return False
-
-    async def delete(self, user_id: UserId) -> None:
-        """Delete a user."""
-        self._users.pop(user_id, None)
 
     async def increment_karma(self, user_id: UserId) -> None:
         """Atomically increment user's karma by 1."""

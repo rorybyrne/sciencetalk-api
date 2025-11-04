@@ -4,7 +4,8 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from talk.domain.model.user import User
-from talk.domain.value import BlueskyDID, Handle, UserId
+from talk.domain.value import AuthProvider, UserId
+from talk.domain.value.types import Handle
 
 
 class UserRepository(ABC):
@@ -27,11 +28,11 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_by_bluesky_did(self, bluesky_did: BlueskyDID) -> Optional[User]:
-        """Find a user by their Bluesky DID.
+    async def find_by_handle(self, handle: Handle) -> Optional[User]:
+        """Find a user by their handle.
 
         Args:
-            bluesky_did: The user's AT Protocol DID
+            handle: The user's handle
 
         Returns:
             The user if found, None otherwise
@@ -39,11 +40,26 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_by_handle(self, handle: Handle) -> Optional[User]:
-        """Find a user by their handle.
+    async def find_by_email(self, email: str) -> Optional[User]:
+        """Find a user by their email.
 
         Args:
-            handle: The user's Bluesky handle
+            email: The user's email address
+
+        Returns:
+            The user if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def find_by_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> Optional[User]:
+        """Find a user by their external provider identity.
+
+        Args:
+            provider: The authentication provider
+            provider_user_id: The user's ID on that provider
 
         Returns:
             The user if found, None otherwise
@@ -59,18 +75,6 @@ class UserRepository(ABC):
 
         Returns:
             The saved user
-        """
-        pass
-
-    @abstractmethod
-    async def exists_by_bluesky_did(self, bluesky_did: BlueskyDID) -> bool:
-        """Check if a user exists with the given Bluesky DID.
-
-        Args:
-            bluesky_did: The AT Protocol DID to check
-
-        Returns:
-            True if a user exists, False otherwise
         """
         pass
 

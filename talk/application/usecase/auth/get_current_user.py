@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from talk.domain.repository import UserRepository
 from talk.domain.service import InviteService, JWTService
 from talk.domain.value import UserId
-from talk.domain.value.types import BlueskyDID, Handle, InviteStatus
+from talk.domain.value.types import Handle, InviteStatus
 
 
 class GetCurrentUserRequest(BaseModel):
@@ -22,7 +22,7 @@ class InviteInfo(BaseModel):
     """Invite information for response."""
 
     id: str
-    invitee_handle: Handle
+    invitee_handle: str
     status: InviteStatus  # "pending" or "accepted"
     created_at: datetime
     accepted_at: datetime | None
@@ -32,10 +32,10 @@ class GetCurrentUserResponse(BaseModel):
     """Get current user response."""
 
     user_id: str
-    bluesky_did: BlueskyDID
     handle: Handle
-    display_name: str | None
     avatar_url: str | None
+    email: str | None
+    bio: str | None
     karma: int
     created_at: datetime
     invite_quota: int
@@ -96,10 +96,10 @@ class GetCurrentUserUseCase:
 
         return GetCurrentUserResponse(
             user_id=str(user.id),
-            bluesky_did=user.bluesky_did,
             handle=user.handle,
-            display_name=user.display_name,
             avatar_url=user.avatar_url,
+            email=user.email,
+            bio=user.bio,
             karma=user.karma,
             created_at=user.created_at,
             invite_quota=user.invite_quota,

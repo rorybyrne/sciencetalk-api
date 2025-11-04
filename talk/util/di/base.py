@@ -4,7 +4,7 @@ from typing import ClassVar, Literal
 
 from dishka import Provider
 
-Component = Literal["bluesky", "persistence"]
+Component = Literal["bluesky", "twitter", "persistence"]
 
 
 class ProviderBase(Provider):

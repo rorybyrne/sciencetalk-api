@@ -1,12 +1,13 @@
 """PostgreSQL implementation of Invite repository."""
 
+from typing import Optional
+
 from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import Invite
 from talk.domain.repository import InviteRepository
-from talk.domain.value import InviteId, InviteStatus, UserId
-from talk.domain.value.types import BlueskyDID
+from talk.domain.value import AuthProvider, InviteId, InviteStatus, InviteToken, UserId
 from talk.persistence.mappers import invite_to_dict, row_to_invite
 from talk.persistence.tables import invites_table
 
@@ -22,31 +23,92 @@ class PostgresInviteRepository(InviteRepository):
         """
         self.session = session
 
-    async def find_by_id(self, invite_id: InviteId) -> Invite | None:
-        """Find an invite by ID."""
+    async def find_by_id(self, invite_id: InviteId) -> Optional[Invite]:
+        """Find an invite by ID.
+
+        Args:
+            invite_id: Invite ID to look up
+
+        Returns:
+            Invite if found, None otherwise
+        """
         stmt = select(invites_table).where(invites_table.c.id == invite_id)
         result = await self.session.execute(stmt)
-        row = result.fetchone()
-        return row_to_invite(row._asdict()) if row else None
+        row = result.mappings().first()
+        return row_to_invite(dict(row)) if row else None
 
-    async def find_pending_by_did(self, did: BlueskyDID) -> Invite | None:
-        """Find a pending invite by DID.
+    async def find_by_token(self, token: InviteToken) -> Optional[Invite]:
+        """Find an invite by its token.
+
+        Args:
+            token: Invite token to look up
+
+        Returns:
+            Invite if found, None otherwise
+        """
+        stmt = select(invites_table).where(invites_table.c.invite_token == token)
+        result = await self.session.execute(stmt)
+        row = result.mappings().first()
+        return row_to_invite(dict(row)) if row else None
+
+    async def find_pending_by_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> Optional[Invite]:
+        """Find a pending invite by provider and provider user ID.
 
         Critical path for login check - indexed for performance.
-        DID is the primary matching identifier (handles can change).
+
+        Args:
+            provider: Authentication provider
+            provider_user_id: Provider-specific user ID (DID, username, etc.)
+
+        Returns:
+            Invite if found, None otherwise
         """
         stmt = select(invites_table).where(
             and_(
-                invites_table.c.invitee_did == str(did),
+                invites_table.c.provider == provider.value,
+                invites_table.c.invitee_provider_id == provider_user_id,
                 invites_table.c.status == InviteStatus.PENDING.value,
             )
         )
         result = await self.session.execute(stmt)
-        row = result.fetchone()
-        return row_to_invite(row._asdict()) if row else None
+        row = result.mappings().first()
+        return row_to_invite(dict(row)) if row else None
+
+    async def exists_pending_for_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> bool:
+        """Check if a pending invite exists for provider identity.
+
+        Fast check without loading full invite data.
+
+        Args:
+            provider: Authentication provider
+            provider_user_id: Provider-specific user ID
+
+        Returns:
+            True if pending invite exists, False otherwise
+        """
+        stmt = select(invites_table.c.id).where(
+            and_(
+                invites_table.c.provider == provider.value,
+                invites_table.c.invitee_provider_id == provider_user_id,
+                invites_table.c.status == InviteStatus.PENDING.value,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.first() is not None
 
     async def save(self, invite: Invite) -> Invite:
-        """Save an invite (create or update)."""
+        """Save an invite (create or update).
+
+        Args:
+            invite: Invite to save
+
+        Returns:
+            Saved invite
+        """
         invite_dict = invite_to_dict(invite)
 
         # Check if invite exists
@@ -69,9 +131,17 @@ class PostgresInviteRepository(InviteRepository):
         return invite
 
     async def count_by_inviter(
-        self, inviter_id: UserId, status: InviteStatus | None = None
+        self, inviter_id: UserId, status: Optional[InviteStatus] = None
     ) -> int:
-        """Count invites by inviter."""
+        """Count invites by inviter.
+
+        Args:
+            inviter_id: Inviter user ID
+            status: Optional filter by status
+
+        Returns:
+            Count of matching invites
+        """
         stmt = (
             select(func.count())
             .select_from(invites_table)
@@ -87,11 +157,21 @@ class PostgresInviteRepository(InviteRepository):
     async def find_by_inviter(
         self,
         inviter_id: UserId,
-        status: InviteStatus | None = None,
+        status: Optional[InviteStatus] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Invite]:
-        """Find invites by inviter with pagination."""
+        """Find invites by inviter with pagination.
+
+        Args:
+            inviter_id: Inviter user ID
+            status: Optional filter by status
+            limit: Maximum number of results
+            offset: Number of results to skip
+
+        Returns:
+            List of matching invites
+        """
         stmt = (
             select(invites_table)
             .where(invites_table.c.inviter_id == inviter_id)
@@ -104,4 +184,5 @@ class PostgresInviteRepository(InviteRepository):
             stmt = stmt.where(invites_table.c.status == status.value)
 
         result = await self.session.execute(stmt)
-        return [row_to_invite(row._asdict()) for row in result.fetchall()]
+        rows = result.mappings().all()
+        return [row_to_invite(dict(row)) for row in rows]

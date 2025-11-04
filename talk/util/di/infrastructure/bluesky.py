@@ -3,9 +3,8 @@
 from dishka import Scope, provide
 
 from talk.adapter.bluesky.auth import (
-    ATProtocolOAuthClient,
-    BlueskyAuthClient,
-    MockBlueskyAuthClient,
+    BlueskyOAuthClient,
+    RealBlueskyOAuthClient,
 )
 from talk.config import Settings
 from talk.util.di.base import ProviderBase
@@ -23,14 +22,19 @@ class ProdBlueskyProvider(BlueskyProvider):
     __is_mock__ = False
 
     @provide(scope=Scope.APP)
-    def get_bluesky_auth_client(self, settings: Settings) -> BlueskyAuthClient:
-        """Provide Bluesky authentication client.
+    def get_bluesky_oauth_client(self, settings: Settings) -> BlueskyOAuthClient:
+        """Provide Bluesky OAuth client.
 
-        Uses real AT Protocol OAuth client when configured, otherwise mock.
+        The client_id is constructed from the base_url as per AT Protocol spec:
+        {base_url}/.well-known/oauth-client-metadata
+
+        Returns:
+            Bluesky OAuth client
         """
-        if settings.auth.oauth_client_id and settings.auth.oauth_redirect_uri:
-            return ATProtocolOAuthClient(
-                client_id=settings.auth.oauth_client_id,
-                redirect_uri=settings.auth.oauth_redirect_uri,
-            )
-        return MockBlueskyAuthClient()
+        # Construct client_id from base_url (AT Protocol requirement)
+        client_id = f"{settings.api.base_url}/.well-known/oauth-client-metadata"
+
+        return RealBlueskyOAuthClient(
+            client_id=client_id,
+            redirect_uri=settings.auth.oauth_callback_url,
+        )

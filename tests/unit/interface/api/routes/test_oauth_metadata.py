@@ -10,8 +10,7 @@ class TestGetOAuthClientMetadata:
     def test_returns_valid_metadata_structure(self):
         """Should return valid OAuth client metadata."""
         # Arrange
-        settings = Settings()
-        settings.api.base_url = "https://talk.example.com"
+        settings = Settings(host="talk.example.com", environment="production")
 
         # Act
         metadata = get_oauth_client_metadata(settings)
@@ -31,8 +30,7 @@ class TestGetOAuthClientMetadata:
 
     def test_client_id_matches_metadata_endpoint(self):
         """Client ID should be the URL of the metadata endpoint."""
-        settings = Settings()
-        settings.api.base_url = "https://talk.example.com"
+        settings = Settings(host="talk.example.com", environment="production")
 
         metadata = get_oauth_client_metadata(settings)
 
@@ -51,8 +49,7 @@ class TestGetOAuthClientMetadata:
 
     def test_client_uri_matches_base_url(self):
         """Client URI should match base URL."""
-        settings = Settings()
-        settings.api.base_url = "https://talk.example.com"
+        settings = Settings(host="talk.example.com", environment="production")
 
         metadata = get_oauth_client_metadata(settings)
 
@@ -60,8 +57,7 @@ class TestGetOAuthClientMetadata:
 
     def test_logo_uri_points_to_amacrin_svg(self):
         """Logo URI should point to amacrin.svg."""
-        settings = Settings()
-        settings.api.base_url = "https://talk.example.com"
+        settings = Settings(host="talk.example.com", environment="production")
 
         metadata = get_oauth_client_metadata(settings)
 
@@ -69,8 +65,7 @@ class TestGetOAuthClientMetadata:
 
     def test_redirect_uris_includes_callback(self):
         """Redirect URIs should include callback endpoint."""
-        settings = Settings()
-        settings.api.base_url = "https://talk.example.com"
+        settings = Settings(host="talk.example.com", environment="production")
 
         metadata = get_oauth_client_metadata(settings)
 

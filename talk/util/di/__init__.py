@@ -8,9 +8,12 @@ from talk.util.di.core import ProdConfigProvider
 from talk.util.di.domain import ProdDomainProvider
 from talk.util.di.infrastructure import (
     BlueskyProvider,
+    OAuthAggregatorProvider,
     PersistenceProvider,
     ProdBlueskyProvider,
     ProdPersistenceProvider,
+    ProdTwitterProvider,
+    TwitterProvider,
 )
 
 # Single list - all providers treated uniformly
@@ -21,7 +24,10 @@ PROVIDERS: list[Type[ProviderBase]] = [
     ProdApplicationProvider,
     # Infrastructure components (mockable)
     BlueskyProvider,
+    TwitterProvider,
     PersistenceProvider,
+    # OAuth aggregator (combines all OAuth clients)
+    OAuthAggregatorProvider,
 ]
 
 
@@ -77,8 +83,11 @@ __all__ = [
     "ProdApplicationProvider",
     # Infrastructure base classes
     "BlueskyProvider",
+    "OAuthAggregatorProvider",
     "PersistenceProvider",
+    "TwitterProvider",
     # Infrastructure implementations
     "ProdBlueskyProvider",
     "ProdPersistenceProvider",
+    "ProdTwitterProvider",
 ]

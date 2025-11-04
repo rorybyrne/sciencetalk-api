@@ -8,10 +8,12 @@ from talk.domain.repository.comment import CommentRepository
 from talk.domain.repository.invite import InviteRepository
 from talk.domain.repository.post import PostRepository
 from talk.domain.repository.user import UserRepository
+from talk.domain.repository.user_identity import UserIdentityRepository
 from talk.domain.repository.vote import VoteRepository
 
 __all__ = [
     "UserRepository",
+    "UserIdentityRepository",
     "PostRepository",
     "CommentRepository",
     "VoteRepository",

@@ -6,6 +6,7 @@ from talk.domain.repository import (
     CommentRepository,
     InviteRepository,
     PostRepository,
+    UserIdentityRepository,
     UserRepository,
     VoteRepository,
 )
@@ -13,6 +14,7 @@ from talk.persistence.repository.inmemory import (
     InMemoryCommentRepository,
     InMemoryInviteRepository,
     InMemoryPostRepository,
+    InMemoryUserIdentityRepository,
     InMemoryUserRepository,
     InMemoryVoteRepository,
 )
@@ -31,6 +33,11 @@ class MockPersistenceProvider(PersistenceProvider):
     def get_user_repository(self) -> UserRepository:
         """Provide in-memory user repository."""
         return InMemoryUserRepository()
+
+    @provide(scope=Scope.REQUEST)
+    def get_user_identity_repository(self) -> UserIdentityRepository:
+        """Provide in-memory user identity repository."""
+        return InMemoryUserIdentityRepository()
 
     @provide(scope=Scope.REQUEST)
     def get_post_repository(self) -> PostRepository:

@@ -7,20 +7,22 @@ instead of SQLAlchemy's classical imperative mapping.
 from typing import Any, Dict
 from uuid import UUID
 
-from talk.domain.model import Comment, Invite, Post, User, Vote
+from talk.domain.model import Comment, Invite, Post, User, UserIdentity, Vote
 from talk.domain.value import (
-    BlueskyDID,
+    AuthProvider,
     CommentId,
-    Handle,
     InviteId,
     InviteStatus,
+    InviteToken,
     PostId,
     PostType,
     UserId,
+    UserIdentityId,
     VotableType,
     VoteId,
     VoteType,
 )
+from talk.domain.value.types import Handle
 
 
 def row_to_user(row: Dict[str, Any]) -> User:
@@ -34,10 +36,10 @@ def row_to_user(row: Dict[str, Any]) -> User:
     """
     return User(
         id=UserId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
-        bluesky_did=BlueskyDID(root=row["bluesky_did"]),
-        handle=Handle(root=row["handle"]),
-        display_name=row.get("display_name"),
+        handle=Handle(row["handle"]),
         avatar_url=row.get("avatar_url"),
+        email=row.get("email"),
+        bio=row.get("bio"),
         karma=row["karma"],
         invite_quota=row.get("invite_quota", 5),
         created_at=row["created_at"],
@@ -55,6 +57,43 @@ def user_to_dict(user: User) -> Dict[str, Any]:
         Dict suitable for database insertion/update
     """
     return user.model_dump()
+
+
+def row_to_user_identity(row: Dict[str, Any]) -> UserIdentity:
+    """Convert database row to UserIdentity domain model.
+
+    Args:
+        row: Database row as dict
+
+    Returns:
+        UserIdentity domain model
+    """
+    return UserIdentity(
+        id=UserIdentityId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
+        user_id=UserId(
+            UUID(row["user_id"]) if isinstance(row["user_id"], str) else row["user_id"]
+        ),
+        provider=AuthProvider(row["provider"]),
+        provider_user_id=row["provider_user_id"],
+        provider_handle=row["provider_handle"],
+        provider_email=row.get("provider_email"),
+        is_primary=row["is_primary"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        last_login_at=row.get("last_login_at"),
+    )
+
+
+def user_identity_to_dict(identity: UserIdentity) -> Dict[str, Any]:
+    """Convert UserIdentity domain model to database dict.
+
+    Args:
+        identity: UserIdentity domain model
+
+    Returns:
+        Dict suitable for database insertion/update
+    """
+    return identity.model_dump()
 
 
 def row_to_post(row: Dict[str, Any]) -> Post:
@@ -75,7 +114,7 @@ def row_to_post(row: Dict[str, Any]) -> Post:
             if isinstance(row["author_id"], str)
             else row["author_id"]
         ),
-        author_handle=Handle(root=row["author_handle"]),
+        author_handle=Handle(row["author_handle"]),
         url=row.get("url"),
         text=row.get("text"),
         points=row["points"],
@@ -117,7 +156,7 @@ def row_to_comment(row: Dict[str, Any]) -> Comment:
             if isinstance(row["author_id"], str)
             else row["author_id"]
         ),
-        author_handle=Handle(root=row["author_handle"]),
+        author_handle=Handle(row["author_handle"]),
         text=row["text"],
         parent_id=CommentId(
             UUID(row["parent_id"])
@@ -198,8 +237,11 @@ def row_to_invite(row: Dict[str, Any]) -> Invite:
             if isinstance(row["inviter_id"], str)
             else row["inviter_id"]
         ),
-        invitee_handle=Handle(root=row["invitee_handle"]),
-        invitee_did=BlueskyDID(row["invitee_did"]),
+        provider=AuthProvider(row["provider"]),
+        invitee_handle=row["invitee_handle"],
+        invitee_provider_id=row["invitee_provider_id"],
+        invitee_name=row.get("invitee_name"),
+        invite_token=InviteToken(root=row["invite_token"]),
         status=InviteStatus(row["status"]),
         created_at=row["created_at"],
         accepted_at=row.get("accepted_at"),

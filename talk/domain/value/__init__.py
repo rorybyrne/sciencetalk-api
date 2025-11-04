@@ -1,12 +1,21 @@
 """Domain value objects for Science Talk."""
 
-from talk.domain.value.identifiers import CommentId, InviteId, PostId, UserId, VoteId
+from talk.domain.value.identifiers import (
+    CommentId,
+    InviteId,
+    PostId,
+    UserId,
+    UserIdentityId,
+    VoteId,
+)
 from talk.domain.value.types import (
+    AuthProvider,
     BlueskyDID,
     Handle,
     InviteStatus,
+    InviteToken,
+    OAuthProviderInfo,
     PostType,
-    UserAuthInfo,
     VotableType,
     VoteType,
 )
@@ -14,6 +23,7 @@ from talk.domain.value.types import (
 __all__ = [
     # Identifiers
     "UserId",
+    "UserIdentityId",
     "PostId",
     "CommentId",
     "VoteId",
@@ -23,7 +33,9 @@ __all__ = [
     "VoteType",
     "VotableType",
     "InviteStatus",
+    "InviteToken",
     "Handle",
     "BlueskyDID",
-    "UserAuthInfo",
+    "AuthProvider",
+    "OAuthProviderInfo",
 ]

@@ -9,6 +9,7 @@ from uuid import UUID
 
 # Core domain entity identifiers
 UserId = NewType("UserId", UUID)
+UserIdentityId = NewType("UserIdentityId", UUID)
 PostId = NewType("PostId", UUID)
 CommentId = NewType("CommentId", UUID)
 VoteId = NewType("VoteId", UUID)

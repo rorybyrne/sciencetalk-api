@@ -2,13 +2,12 @@
 
 from dishka import Scope, provide
 
-from talk.adapter.bluesky.auth import BlueskyAuthClient
-from talk.util.di.base import ProviderBase
 from talk.config import AuthSettings
 from talk.domain.repository import (
     CommentRepository,
     InviteRepository,
     PostRepository,
+    UserIdentityRepository,
     UserRepository,
     VoteRepository,
 )
@@ -17,10 +16,14 @@ from talk.domain.service import (
     CommentService,
     InviteService,
     JWTService,
+    OAuthClient,
     PostService,
+    UserIdentityService,
     UserService,
     VoteService,
 )
+from talk.domain.value import AuthProvider
+from talk.util.di.base import ProviderBase
 
 
 class ProdDomainProvider(ProviderBase):
@@ -33,9 +36,18 @@ class ProdDomainProvider(ProviderBase):
     scope = Scope.REQUEST
 
     @provide
-    def get_auth_service(self, bluesky_client: BlueskyAuthClient) -> AuthService:
-        """Provide authentication domain service."""
-        return AuthService(bluesky_client=bluesky_client)
+    def get_auth_service(
+        self, oauth_clients: dict[AuthProvider, OAuthClient]
+    ) -> AuthService:
+        """Provide multi-provider authentication domain service.
+
+        Args:
+            oauth_clients: Dictionary mapping providers to their OAuth clients
+
+        Returns:
+            AuthService configured with all available OAuth clients
+        """
+        return AuthService(oauth_clients=oauth_clients)
 
     @provide
     def get_jwt_service(self, auth_settings: AuthSettings) -> JWTService:
@@ -79,3 +91,10 @@ class ProdDomainProvider(ProviderBase):
     def get_user_service(self, user_repository: UserRepository) -> UserService:
         """Provide user domain service."""
         return UserService(user_repository=user_repository)
+
+    @provide
+    def get_user_identity_service(
+        self, user_identity_repository: UserIdentityRepository
+    ) -> UserIdentityService:
+        """Provide user identity domain service."""
+        return UserIdentityService(user_identity_repository=user_identity_repository)

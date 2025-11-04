@@ -11,22 +11,31 @@ from talk.application.usecase.invite import (
 from talk.application.usecase.invite.create_invites import (
     CreateInvitesRequest,
     CreateInvitesResponse,
+    InviteeInfo,
 )
 from talk.application.usecase.invite.get_invites import (
     GetInvitesRequest,
     GetInvitesResponse,
 )
 from talk.domain.service import JWTService
-from talk.domain.value import InviteStatus
+from talk.domain.value import AuthProvider, InviteStatus
 from talk.util.jwt import JWTError
 
 router = APIRouter(prefix="/invites", tags=["invites"], route_class=DishkaRoute)
 
 
+class InviteeAPIInfo(BaseModel):
+    """API info for a single invitee."""
+
+    provider: AuthProvider
+    handle: str
+    name: str | None = None
+
+
 class CreateInvitesAPIRequest(BaseModel):
     """API request for creating invites."""
 
-    invitee_handles: list[str]
+    invitees: list[InviteeAPIInfo]
 
 
 @router.post(
@@ -71,8 +80,14 @@ async def create_invites(
     try:
         use_case_request = CreateInvitesRequest(
             inviter_id=payload.user_id,
-            inviter_handle=payload.handle,
-            invitee_handles=request.invitee_handles,
+            invitees=[
+                InviteeInfo(
+                    provider=invitee.provider,
+                    handle=invitee.handle,
+                    name=invitee.name,
+                )
+                for invitee in request.invitees
+            ],
         )
         response = await create_invites_use_case.execute(use_case_request)
         return response
@@ -127,7 +142,6 @@ async def get_invites(
     # Execute use case
     request = GetInvitesRequest(
         inviter_id=payload.user_id,
-        inviter_handle=payload.handle,
         status=status_filter,
         limit=limit,
         offset=offset,

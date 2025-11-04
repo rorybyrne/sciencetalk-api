@@ -5,6 +5,7 @@ They match the schema defined in Alembic migrations.
 """
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     Enum,
@@ -23,16 +24,16 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 metadata = MetaData()
 
 # ============================================================================
-# USERS TABLE
+# USERS TABLE (Provider-agnostic)
 # ============================================================================
 users_table = Table(
     "users",
     metadata,
     Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
-    Column("bluesky_did", String(255), nullable=False, unique=True),
-    Column("handle", String(255), nullable=False),
-    Column("display_name", String(255), nullable=True),
+    Column("handle", String(255), nullable=False),  # Username (from provider handle)
     Column("avatar_url", Text, nullable=True),
+    Column("email", String(255), nullable=True),  # Optional email for notifications
+    Column("bio", Text, nullable=True),  # Optional bio
     Column("karma", Integer, nullable=False, server_default="0"),
     Column("invite_quota", Integer, nullable=False, server_default="5"),
     Column(
@@ -43,8 +44,38 @@ users_table = Table(
     ),
 )
 
-Index("idx_users_bluesky_did", users_table.c.bluesky_did)
 Index("idx_users_handle", users_table.c.handle)
+Index("idx_users_email", users_table.c.email)
+
+# ============================================================================
+# USER IDENTITIES TABLE (Multi-provider authentication)
+# ============================================================================
+user_identities_table = Table(
+    "user_identities",
+    metadata,
+    Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
+    Column("user_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("provider", String(50), nullable=False),  # 'bluesky', 'twitter'
+    Column("provider_user_id", String(255), nullable=False),  # DID, username, etc.
+    Column("provider_handle", String(255), nullable=False),  # Display handle
+    Column("provider_email", String(255), nullable=True),  # Provider email if available
+    Column("is_primary", Boolean, nullable=False, server_default="false"),
+    Column(
+        "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+    Column(
+        "updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+    ),
+    Column("last_login_at", TIMESTAMP(timezone=True), nullable=True),
+    UniqueConstraint("provider", "provider_user_id", name="uq_provider_identity"),
+)
+
+Index("idx_user_identities_user_id", user_identities_table.c.user_id)
+Index(
+    "idx_user_identities_provider",
+    user_identities_table.c.provider,
+    user_identities_table.c.provider_user_id,
+)
 
 # ============================================================================
 # POSTS TABLE
@@ -73,7 +104,7 @@ posts_table = Table(
     Column(
         "author_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     ),
-    Column("author_handle", String(255), nullable=False),
+    Column("author_handle", String(255), nullable=False),  # Denormalized from users
     Column("points", Integer, nullable=False, server_default="1"),
     Column("comment_count", Integer, nullable=False, server_default="0"),
     Column(
@@ -112,7 +143,7 @@ comments_table = Table(
     Column(
         "author_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     ),
-    Column("author_handle", String(255), nullable=False),
+    Column("author_handle", String(255), nullable=False),  # Denormalized from users
     Column("text", Text, nullable=False),
     Column("points", Integer, nullable=False, server_default="1"),
     Column("depth", Integer, nullable=False, server_default="0"),
@@ -164,7 +195,7 @@ Index("idx_votes_user_id", votes_table.c.user_id)
 Index("idx_votes_votable", votes_table.c.votable_type, votes_table.c.votable_id)
 
 # ============================================================================
-# INVITES TABLE
+# INVITES TABLE (Multi-provider)
 # ============================================================================
 invites_table = Table(
     "invites",
@@ -173,8 +204,11 @@ invites_table = Table(
     Column(
         "inviter_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     ),
-    Column("invitee_handle", String(255), nullable=False),
-    Column("invitee_did", String(255), nullable=False),  # Resolved DID
+    Column("provider", String(50), nullable=False),  # 'bluesky', 'twitter'
+    Column("invitee_handle", String(255), nullable=False),  # Display handle
+    Column("invitee_provider_id", String(255), nullable=False),  # DID, username, etc.
+    Column("invitee_name", String(255), nullable=True),  # Optional display name
+    Column("invite_token", String(255), nullable=False, unique=True),  # URL-safe token
     Column(
         "status",
         Enum("pending", "accepted", name="invite_status", create_type=False),
@@ -193,19 +227,22 @@ invites_table = Table(
     ),
 )
 
-# Critical index for login check - must be fast (DID is primary matching)
+# Critical index for login check - must be fast (provider + ID matching)
 Index(
-    "idx_invites_invitee_did_status",
-    invites_table.c.invitee_did,
+    "idx_invites_provider_identity_status",
+    invites_table.c.provider,
+    invites_table.c.invitee_provider_id,
     invites_table.c.status,
 )
 Index("idx_invites_inviter_id", invites_table.c.inviter_id)
+Index("idx_invites_token", invites_table.c.invite_token)
 
-# Partial unique constraint: only one pending invite per DID
+# Partial unique constraint: only one pending invite per provider identity
 # Note: This will be created in migration with: CREATE UNIQUE INDEX ... WHERE status = 'pending'
 Index(
-    "idx_invites_unique_pending_did",
-    invites_table.c.invitee_did,
+    "idx_invites_unique_pending_provider_identity",
+    invites_table.c.provider,
+    invites_table.c.invitee_provider_id,
     unique=True,
     postgresql_where=invites_table.c.status == "pending",
 )

@@ -1,11 +1,11 @@
-"""Unit tests for AT Protocol OAuth client."""
+"""Unit tests for Bluesky OAuth client."""
 
 import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from talk.adapter.bluesky.auth import (
-    ATProtocolOAuthClient,
+    RealBlueskyOAuthClient,
     BlueskyAuthError,
     BlueskyUserInfo,
 )
@@ -14,8 +14,8 @@ from talk.adapter.bluesky.session import InMemorySessionStore, OAuthSession
 from talk.domain.value.types import BlueskyDID
 
 
-class TestATProtocolOAuthClient:
-    """Tests for ATProtocolOAuthClient."""
+class TestBlueskyOAuthClient:
+    """Tests for RealBlueskyOAuthClient."""
 
     @pytest.fixture
     def session_store(self):
@@ -25,7 +25,7 @@ class TestATProtocolOAuthClient:
     @pytest.fixture
     def oauth_client(self, session_store):
         """Create OAuth client with test configuration."""
-        return ATProtocolOAuthClient(
+        return RealBlueskyOAuthClient(
             client_id="https://talk.example.com/.well-known/oauth-client-metadata",
             redirect_uri="https://talk.example.com/auth/callback",
             session_store=session_store,
@@ -46,8 +46,8 @@ class TestATProtocolOAuthClient:
         )
 
 
-class TestInitiateAuthorization(TestATProtocolOAuthClient):
-    """Tests for initiate_authorization method."""
+class TestInitiateAuthorization(TestBlueskyOAuthClient):
+    """Tests for initiate_authorization_by_server method."""
 
     @pytest.mark.asyncio
     async def test_resolves_handle_and_initiates_flow(self, oauth_client):
@@ -91,7 +91,7 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
                 )
 
                 # Execute
-                auth_url = await oauth_client.initiate_authorization(
+                auth_url = await oauth_client.initiate_authorization_by_handle(
                     "alice.bsky.social"
                 )
 
@@ -147,7 +147,7 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
                     "test_nonce",
                 )
 
-                await oauth_client.initiate_authorization("did:plc:abc123")
+                await oauth_client.initiate_authorization_by_handle("did:plc:abc123")
 
                 # Should resolve DID document directly
                 mock_resolve_did.assert_called_once()
@@ -190,7 +190,7 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
                     "test_nonce",
                 )
 
-                await oauth_client.initiate_authorization("alice.bsky.social")
+                await oauth_client.initiate_authorization_by_handle("alice.bsky.social")
 
                 # Verify session was saved
                 # Extract state from URL (simple approach - in real tests we'd mock better)
@@ -206,7 +206,7 @@ class TestInitiateAuthorization(TestATProtocolOAuthClient):
                 assert session.dpop_keypair
 
 
-class TestCompleteAuthorization(TestATProtocolOAuthClient):
+class TestCompleteAuthorization(TestBlueskyOAuthClient):
     """Tests for complete_authorization method."""
 
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ class TestCompleteAuthorization(TestATProtocolOAuthClient):
                 )
 
                 # Verify result
-                assert user_info.did == "did:plc:abc123"
+                assert user_info.provider_user_id == "did:plc:abc123"
                 assert user_info.handle == "alice.bsky.social"
                 assert user_info.display_name == "Alice"
 
@@ -390,7 +390,7 @@ class TestCompleteAuthorization(TestATProtocolOAuthClient):
                 assert retrieved_session is None
 
 
-class TestMakePARRequest(TestATProtocolOAuthClient):
+class TestMakePARRequest(TestBlueskyOAuthClient):
     """Tests for _make_par_request method."""
 
     @pytest.mark.asyncio
@@ -488,7 +488,7 @@ class TestMakePARRequest(TestATProtocolOAuthClient):
                 )
 
 
-class TestExchangeCodeForToken(TestATProtocolOAuthClient):
+class TestExchangeCodeForToken(TestBlueskyOAuthClient):
     """Tests for _exchange_code_for_token method."""
 
     @pytest.mark.asyncio
@@ -574,7 +574,7 @@ class TestExchangeCodeForToken(TestATProtocolOAuthClient):
                 )
 
 
-class TestGetUserProfile(TestATProtocolOAuthClient):
+class TestGetUserProfile(TestBlueskyOAuthClient):
     """Tests for _get_user_profile method."""
 
     @pytest.mark.asyncio

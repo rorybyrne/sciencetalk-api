@@ -24,6 +24,7 @@ from talk.domain.service import (
     InviteService,
     JWTService,
     PostService,
+    UserIdentityService,
     UserService,
     VoteService,
 )
@@ -38,7 +39,8 @@ class ProdApplicationProvider(ProviderBase):
         self,
         auth_service: AuthService,
         jwt_service: JWTService,
-        user_repository: UserRepository,
+        user_service: UserService,
+        user_identity_service: UserIdentityService,
         invite_service: InviteService,
         settings: Settings,
     ) -> LoginUseCase:
@@ -46,7 +48,8 @@ class ProdApplicationProvider(ProviderBase):
         return LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repository,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
@@ -126,12 +129,14 @@ class ProdApplicationProvider(ProviderBase):
         self,
         invite_service: InviteService,
         user_service: UserService,
+        user_identity_service: UserIdentityService,
         settings: Settings,
     ) -> CreateInvitesUseCase:
         """Provide create invites use case."""
         return CreateInvitesUseCase(
             invite_service=invite_service,
             user_service=user_service,
+            user_identity_service=user_identity_service,
             settings=settings,
         )
 

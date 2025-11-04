@@ -10,6 +10,7 @@ from talk.domain.repository import (
     CommentRepository,
     InviteRepository,
     PostRepository,
+    UserIdentityRepository,
     UserRepository,
     VoteRepository,
 )
@@ -18,6 +19,7 @@ from talk.persistence.repository import (
     PostgresCommentRepository,
     PostgresInviteRepository,
     PostgresPostRepository,
+    PostgresUserIdentityRepository,
     PostgresUserRepository,
     PostgresVoteRepository,
 )
@@ -74,6 +76,13 @@ class ProdPersistenceProvider(PersistenceProvider):
     def get_user_repository(self, session: AsyncSession) -> UserRepository:
         """Provide User repository."""
         return PostgresUserRepository(session)
+
+    @provide(scope=Scope.REQUEST)
+    def get_user_identity_repository(
+        self, session: AsyncSession
+    ) -> UserIdentityRepository:
+        """Provide UserIdentity repository."""
+        return PostgresUserIdentityRepository(session)
 
     @provide(scope=Scope.REQUEST)
     def get_post_repository(self, session: AsyncSession) -> PostRepository:

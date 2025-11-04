@@ -1,17 +1,23 @@
 """Unit tests for LoginUseCase."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
+from dishka import AsyncContainer
 import pytest
 
 from talk.application.usecase.auth.login import LoginRequest, LoginUseCase
 from talk.config import Settings
 from talk.domain.model.user import User
-from talk.domain.service import AuthService, InviteService, JWTService
-from talk.domain.value import UserId
-from talk.domain.value.types import BlueskyDID, Handle
-from talk.persistence.repository.user import UserRepository
+from talk.domain.service import (
+    AuthService,
+    InviteService,
+    JWTService,
+    UserIdentityService,
+    UserService,
+)
+from talk.domain.value import AuthProvider, InviteToken, UserId, UserIdentityId
+from talk.domain.value.types import Handle
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -23,11 +29,12 @@ class TestLoginUseCase:
 
     @pytest.mark.asyncio
     async def test_login_creates_new_user_when_not_exists_and_has_invite(
-        self, unit_env
+        self, unit_env: AsyncContainer
     ):
         """Login should create new user when not exists and has pending invite."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
+        user_identity_service = await unit_env.get(UserIdentityService)
         auth_service = await unit_env.get(AuthService)
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
@@ -35,14 +42,21 @@ class TestLoginUseCase:
 
         # Create a pending invite for the user (MockBlueskyAuthClient returns "user.bsky.social")
         inviter_id = UserId(uuid4())
+        invite_token = InviteToken(root="test-token-123")
         await invite_service.create_invite(
-            inviter_id, Handle(root="user.bsky.social"), BlueskyDID("did:plc:mock123")
+            inviter_id=inviter_id,
+            provider=AuthProvider.BLUESKY,
+            invitee_handle="user.bsky.social",
+            invitee_provider_id="did:plc:mock123",
+            invitee_name=None,
+            invite_token=invite_token,
         )
 
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repo,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
@@ -53,14 +67,17 @@ class TestLoginUseCase:
 
         # Act
         response = await login_use_case.execute(
-            LoginRequest(code=code, state=state, iss=iss)
+            LoginRequest(provider=AuthProvider.BLUESKY, code=code, state=state, iss=iss)
         )
 
         # Assert
         # Verify user was created (MockBlueskyAuthClient returns mock data)
-        saved_user = await user_repo.find_by_bluesky_did(
-            BlueskyDID(root="did:plc:mock123")
+        identity = await user_identity_service.get_identity_by_provider(
+            AuthProvider.BLUESKY, "did:plc:mock123"
         )
+        assert identity is not None
+
+        saved_user = await user_service.get_user_by_id(identity.user_id)
         assert saved_user is not None
         assert saved_user.handle.root == "user.bsky.social"
         assert saved_user.karma == 0  # New users start with 0 karma
@@ -72,15 +89,16 @@ class TestLoginUseCase:
 
         # Verify invite was marked as accepted
         has_pending = await invite_service.check_invite_exists(
-            BlueskyDID("did:plc:mock123")
+            AuthProvider.BLUESKY, "did:plc:mock123"
         )
         assert has_pending is False  # No longer pending
 
     @pytest.mark.asyncio
     async def test_login_updates_existing_user(self, unit_env):
-        """Login should update existing user handle/display/avatar."""
+        """Login should update existing user last_login_at for existing identity."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
+        user_identity_service = await unit_env.get(UserIdentityService)
         auth_service = await unit_env.get(AuthService)
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
@@ -89,25 +107,43 @@ class TestLoginUseCase:
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repo,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
 
-        # Create existing user with same DID as mock client will return
+        # Create existing user with identity
         existing_user_id = UserId(uuid4())
         existing_user = User(
             id=existing_user_id,
-            bluesky_did=BlueskyDID(root="did:plc:mock123"),
-            handle=Handle(root="old.bsky.social"),
-            display_name="Old Name",
+            handle=Handle("old.bsky.social"),
             avatar_url="https://example.com/old_avatar.jpg",
+            email=None,
+            bio=None,
             karma=150,
             invite_quota=10,
-            created_at=datetime(2024, 1, 1),
-            updated_at=datetime(2024, 1, 1),
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         )
-        await user_repo.save(existing_user)
+        await user_service.save(existing_user)
+
+        # Create identity for this user (mock client will return same DID)
+        from talk.domain.model.user_identity import UserIdentity
+
+        identity = UserIdentity(
+            id=UserIdentityId(uuid4()),
+            user_id=existing_user_id,
+            provider=AuthProvider.BLUESKY,
+            provider_user_id="did:plc:mock123",
+            provider_handle="old.bsky.social",
+            provider_email=None,
+            is_primary=True,
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            last_login_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        )
+        await user_identity_service.save(identity)
 
         code = "oauth_code_456"
         state = "test_state_456"
@@ -115,20 +151,16 @@ class TestLoginUseCase:
 
         # Act
         response = await login_use_case.execute(
-            LoginRequest(code=code, state=state, iss=iss)
+            LoginRequest(provider=AuthProvider.BLUESKY, code=code, state=state, iss=iss)
         )
 
         # Assert
-        saved_user = await user_repo.find_by_bluesky_did(
-            BlueskyDID(root="did:plc:mock123")
-        )
-
         # Verify user ID preserved
-        assert saved_user.id == existing_user_id
+        assert response.user_id == str(existing_user_id)
 
-        # Verify user data updated from mock auth client
-        assert saved_user.handle.root == "user.bsky.social"
-        assert saved_user.display_name == "Test User"
+        # Verify user still exists
+        saved_user = await user_service.get_user_by_id(existing_user_id)
+        assert saved_user is not None
 
         # Verify karma preserved
         assert saved_user.karma == 150
@@ -136,17 +168,19 @@ class TestLoginUseCase:
         # Verify invite_quota preserved
         assert saved_user.invite_quota == 10
 
-        # Verify timestamps
-        assert saved_user.created_at == existing_user.created_at
-        assert saved_user.updated_at > existing_user.updated_at
-
-        assert response.user_id == str(existing_user_id)
+        # Verify identity last_login_at was updated
+        updated_identity = await user_identity_service.get_identity_by_provider(
+            AuthProvider.BLUESKY, "did:plc:mock123"
+        )
+        assert updated_identity is not None
+        assert updated_identity.last_login_at > identity.last_login_at
 
     @pytest.mark.asyncio
     async def test_login_rejects_new_user_without_invite(self, unit_env):
         """Login should reject new user signup when no pending invite exists."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
+        user_identity_service = await unit_env.get(UserIdentityService)
         auth_service = await unit_env.get(AuthService)
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
@@ -155,7 +189,8 @@ class TestLoginUseCase:
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repo,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
@@ -165,20 +200,25 @@ class TestLoginUseCase:
         iss = "https://bsky.social"
 
         # Act & Assert - Should raise error because no invite exists
-        with pytest.raises(ValueError, match="No invite found.*invite-only"):
-            await login_use_case.execute(LoginRequest(code=code, state=state, iss=iss))
+        with pytest.raises(ValueError, match="No invitation found.*invite-only"):
+            await login_use_case.execute(
+                LoginRequest(
+                    provider=AuthProvider.BLUESKY, code=code, state=state, iss=iss
+                )
+            )
 
         # Verify user was NOT created
-        saved_user = await user_repo.find_by_bluesky_did(
-            BlueskyDID(root="did:plc:mock123")
+        identity = await user_identity_service.get_identity_by_provider(
+            AuthProvider.BLUESKY, "did:plc:mock123"
         )
-        assert saved_user is None
+        assert identity is None
 
     @pytest.mark.asyncio
     async def test_login_accepts_new_user_with_accepted_invite_rejected(self, unit_env):
         """Login should reject new user when invite was already accepted."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
+        user_identity_service = await unit_env.get(UserIdentityService)
         auth_service = await unit_env.get(AuthService)
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
@@ -186,17 +226,22 @@ class TestLoginUseCase:
 
         # Create invite and mark as accepted
         inviter_id = UserId(uuid4())
-        await invite_service.create_invite(
-            inviter_id, Handle(root="user.bsky.social"), BlueskyDID("did:plc:mock123")
+        invite_token = InviteToken(root="test-token-999")
+        invite = await invite_service.create_invite(
+            inviter_id=inviter_id,
+            provider=AuthProvider.BLUESKY,
+            invitee_handle="user.bsky.social",
+            invitee_provider_id="did:plc:mock123",
+            invitee_name=None,
+            invite_token=invite_token,
         )
-        await invite_service.accept_invite(
-            BlueskyDID("did:plc:mock123"), UserId(uuid4())
-        )
+        await invite_service.accept_invite(invite.id, UserId(uuid4()))
 
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repo,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
@@ -206,27 +251,34 @@ class TestLoginUseCase:
         iss = "https://bsky.social"
 
         # Act & Assert - Should fail because invite is no longer pending
-        with pytest.raises(ValueError, match="No invite found.*invite-only"):
-            await login_use_case.execute(LoginRequest(code=code, state=state, iss=iss))
+        with pytest.raises(ValueError, match="No invitation found.*invite-only"):
+            await login_use_case.execute(
+                LoginRequest(
+                    provider=AuthProvider.BLUESKY, code=code, state=state, iss=iss
+                )
+            )
 
     @pytest.mark.asyncio
-    async def test_login_allows_seed_user_without_invite(self, unit_env):
-        """Login should allow seed users (unlimited inviters) to sign up without invite."""
+    async def test_login_allows_seed_user_without_invite(
+        self, unit_env: AsyncContainer
+    ):
+        """Login should allow seed users to sign up without invite."""
         # Arrange
-        user_repo = await unit_env.get(UserRepository)
+        user_service = await unit_env.get(UserService)
+        user_identity_service = await unit_env.get(UserIdentityService)
         auth_service = await unit_env.get(AuthService)
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
-        # Override settings to add seed user
-        # MockBlueskyAuthClient returns handle "user.bsky.social"
-        settings.invitations.unlimited_inviters = [Handle(root="user.bsky.social")]
+        # Configure seed user (MockBlueskyAuthClient returns "user.bsky.social")
+        settings.invitations.seed_users = ["user.bsky.social"]
 
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
-            user_repository=user_repo,
+            user_service=user_service,
+            user_identity_service=user_identity_service,
             invite_service=invite_service,
             settings=settings,
         )
@@ -235,16 +287,19 @@ class TestLoginUseCase:
         state = "test_state_seed"
         iss = "https://bsky.social"
 
-        # Act - Should succeed without invite because user is a seed user
+        # Act - No invite created, but should succeed because user is seed user
         response = await login_use_case.execute(
-            LoginRequest(code=code, state=state, iss=iss)
+            LoginRequest(provider=AuthProvider.BLUESKY, code=code, state=state, iss=iss)
         )
 
         # Assert
         # Verify user was created
-        saved_user = await user_repo.find_by_bluesky_did(
-            BlueskyDID(root="did:plc:mock123")
+        identity = await user_identity_service.get_identity_by_provider(
+            AuthProvider.BLUESKY, "did:plc:mock123"
         )
+        assert identity is not None
+
+        saved_user = await user_service.get_user_by_id(identity.user_id)
         assert saved_user is not None
         assert saved_user.handle.root == "user.bsky.social"
         assert saved_user.karma == 0
@@ -254,8 +309,8 @@ class TestLoginUseCase:
         assert response.token is not None
         assert response.handle.root == "user.bsky.social"
 
-        # Verify NO invite was used (seed users don't need invites)
+        # Verify no invite was needed
         has_pending = await invite_service.check_invite_exists(
-            BlueskyDID("did:plc:mock123")
+            AuthProvider.BLUESKY, "did:plc:mock123"
         )
-        assert has_pending is False  # No invite needed or used
+        assert has_pending is False  # No invite exists

@@ -16,6 +16,7 @@ from talk.application.usecase.auth.get_current_user import (
 from talk.application.usecase.auth.login import LoginRequest
 from talk.config import Settings
 from talk.domain.service import AuthService
+from talk.domain.value import AuthProvider
 from talk.util.jwt import JWTError
 
 logger = logging.getLogger(__name__)
@@ -24,13 +25,13 @@ router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRo
 
 
 class InitiateLoginRequest(BaseModel):
-    """Initiate login request.
+    """Initiate login request for multi-provider authentication.
 
-    Two modes:
-    1. Server-based (recommended): Omit account, optionally specify server
-    2. Handle-based (advanced): Provide specific handle or DID
+    Supports both Twitter and Bluesky OAuth flows.
     """
 
+    provider: AuthProvider  # Which OAuth provider to use
+    # Bluesky-specific fields (optional)
     account: str | None = None  # Optional: handle/DID for advanced users
     server: str = "https://bsky.social"  # Server URL (default to Bluesky)
     login_hint: str | None = None  # Optional hint for auth server
@@ -54,21 +55,13 @@ async def initiate_login(
     request: InitiateLoginRequest,
     auth_service: FromDishka[AuthService],
 ) -> InitiateLoginResponse:
-    """Initiate OAuth login flow.
+    """Initiate multi-provider OAuth login flow.
 
-    Two modes supported:
-
-    1. **Server-based (recommended)**: Simple "Sign in with Bluesky" button
-       - No handle input required
-       - Works for 99% of users
-       - Just send empty request body or specify custom server
-
-    2. **Handle-based (advanced)**: For custom PDS or explicit targeting
-       - Provide specific handle or DID
-       - Useful for non-Bluesky servers
+    Supports Twitter and Bluesky authentication. For Bluesky, you can optionally
+    specify a server URL or handle. For Twitter, the provider handles everything.
 
     Args:
-        request: Login request with optional account and server
+        request: Login request with provider and optional Bluesky parameters
         auth_service: Authentication domain service from DI
 
     Returns:
@@ -78,45 +71,42 @@ async def initiate_login(
         HTTPException: If initiation fails
 
     Examples:
-        # Simple: Sign in with Bluesky (recommended)
-        POST /auth/login
-        {}
-
-        # Advanced: Specific handle
+        # Twitter login (simple)
         POST /auth/login
         {
+            "provider": "twitter"
+        }
+
+        # Bluesky login with server (recommended)
+        POST /auth/login
+        {
+            "provider": "bluesky",
+            "server": "https://bsky.social"
+        }
+
+        # Bluesky login with specific handle (advanced)
+        POST /auth/login
+        {
+            "provider": "bluesky",
             "account": "alice.bsky.social"
-        }
-
-        # Advanced: Custom PDS server
-        POST /auth/login
-        {
-            "server": "https://custom-pds.example.com"
-        }
-
-        # With login hint
-        POST /auth/login
-        {
-            "server": "https://bsky.social",
-            "login_hint": "alice@example.com"
         }
 
         Response:
         {
+            "authorization_url": "https://twitter.com/i/oauth2/authorize?..." or
             "authorization_url": "https://bsky.social/oauth/authorize?..."
         }
     """
     try:
-        if request.account:
-            # Handle-based flow (existing/advanced)
-            logger.info(f"Initiating handle-based login for: {request.account}")
-            auth_url = await auth_service.initiate_login(request.account)
-        else:
-            # Server-based flow (new/recommended)
-            logger.info(f"Initiating server-based login with: {request.server}")
-            auth_url = await auth_service.initiate_login_with_server(
-                server_url=request.server, login_hint=request.login_hint
-            )
+        logger.info(f"Initiating {request.provider.value} login")
+
+        # Generate state for CSRF protection (in production, this should be stored securely)
+        import secrets
+
+        state = secrets.token_urlsafe(32)
+
+        # All providers now use the same initiate_login method
+        auth_url = await auth_service.initiate_login(request.provider, state)
 
         return InitiateLoginResponse(authorization_url=auth_url)
     except BlueskyAuthError as e:
@@ -135,22 +125,26 @@ async def initiate_login(
 async def login_callback(
     code: str,
     state: str,
-    iss: str,
+    provider: AuthProvider,
     login_use_case: FromDishka[LoginUseCase],
     settings: FromDishka[Settings],
+    iss: str | None = None,  # Optional - only for Bluesky
+    invite_token: str | None = None,  # Optional - for invite links
 ):
-    """Handle OAuth callback and complete login.
+    """Handle multi-provider OAuth callback and complete login.
 
-    This endpoint receives the redirect from the OAuth provider after
-    the user authenticates. It completes the OAuth flow, creates/updates
+    This endpoint receives the redirect from the OAuth provider (Twitter or Bluesky)
+    after the user authenticates. It completes the OAuth flow, creates/updates
     the user, issues a JWT cookie, and redirects to the frontend.
 
     Args:
         code: Authorization code from OAuth provider
         state: State parameter for session verification
-        iss: Issuer URL for verification
+        provider: Which OAuth provider is completing the flow
         login_use_case: Login use case from DI
         settings: Application settings from DI
+        iss: Issuer URL (Bluesky only, optional)
+        invite_token: Optional invite token from URL state
 
     Returns:
         HTTP 302 redirect to frontend with Set-Cookie header
@@ -159,20 +153,32 @@ async def login_callback(
         HTTPException: If login fails
 
     Example:
-        GET /auth/callback?code=abc123&state=xyz789&iss=https://bsky.social
+        # Twitter callback
+        GET /auth/callback?code=abc123&state=xyz789&provider=twitter
+
+        # Bluesky callback
+        GET /auth/callback?code=abc123&state=xyz789&provider=bluesky&iss=https://bsky.social
 
         Redirects to: https://talk.amacrin.com/
         Sets cookie: auth_token
           - Production: HttpOnly, Secure, SameSite=None, Domain=.amacrin.com
           - Development: HttpOnly, SameSite=Lax
     """
-    logger.info(f"OAuth callback received: state={state}, iss={iss}")
+    logger.info(
+        f"OAuth callback received: provider={provider.value}, state={state}, iss={iss}"
+    )
 
     try:
         # Execute login use case
         logger.info("Executing login use case...")
         login_response = await login_use_case.execute(
-            LoginRequest(code=code, state=state, iss=iss)
+            LoginRequest(
+                provider=provider,
+                code=code,
+                state=state,
+                iss=iss,
+                invite_token=invite_token,
+            )
         )
         logger.info(f"Login successful for user: {login_response.handle}")
 

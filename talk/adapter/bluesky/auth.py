@@ -3,7 +3,6 @@
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Protocol
 
 import httpx
 from pydantic import BaseModel
@@ -17,7 +16,8 @@ from talk.adapter.bluesky.identity import (
 from talk.adapter.bluesky.metadata import discover_auth_server
 from talk.adapter.bluesky.pkce import generate_pkce_pair
 from talk.adapter.bluesky.session import InMemorySessionStore, OAuthSession
-from talk.domain.value.types import BlueskyDID
+from talk.domain.service.auth_service import OAuthClient
+from talk.domain.value.types import AuthProvider, BlueskyDID, OAuthProviderInfo
 
 logger = logging.getLogger(__name__)
 
@@ -31,69 +31,25 @@ class BlueskyUserInfo(BaseModel):
     avatar_url: str | None = None
 
 
-class BlueskyAuthClient(Protocol):
-    """Protocol for Bluesky authentication client."""
-
-    async def initiate_authorization_by_server(
-        self, server_url: str, login_hint: str | None = None
-    ) -> str:
-        """Initiate OAuth authorization flow using server identifier.
-
-        Args:
-            server_url: PDS URL (e.g., "https://bsky.social")
-            login_hint: Optional hint for auth server
-
-        Returns:
-            Authorization URL to redirect user to
-
-        Raises:
-            BlueskyAuthError: If initialization fails
-        """
-        ...
-
-    async def initiate_authorization(self, account_identifier: str) -> str:
-        """Initiate OAuth authorization flow using handle or DID.
-
-        Args:
-            account_identifier: Bluesky handle or DID
-
-        Returns:
-            Authorization URL to redirect user to
-
-        Raises:
-            BlueskyAuthError: If initialization fails
-        """
-        ...
-
-    async def complete_authorization(
-        self, code: str, state: str, iss: str
-    ) -> BlueskyUserInfo:
-        """Complete OAuth authorization flow.
-
-        Args:
-            code: Authorization code from callback
-            state: State parameter from callback
-            iss: Issuer parameter from callback
-
-        Returns:
-            User information extracted from Bluesky
-
-        Raises:
-            BlueskyAuthError: If completion fails
-        """
-        ...
-
-
 class BlueskyAuthError(Exception):
     """Bluesky authentication error."""
 
     pass
 
 
-class ATProtocolOAuthClient:
-    """Real AT Protocol OAuth client implementation.
+class BlueskyOAuthClient(OAuthClient):
+    """Base class for Bluesky OAuth clients.
 
-    Implements the full OAuth flow with PKCE, DPoP, and PAR as required
+    Provides type distinction for dependency injection.
+    """
+
+    pass
+
+
+class RealBlueskyOAuthClient(BlueskyOAuthClient):
+    """Real Bluesky OAuth client implementing OAuthClient interface.
+
+    Implements the full AT Protocol OAuth flow with PKCE, DPoP, and PAR as required
     by AT Protocol specification.
     """
 
@@ -113,6 +69,28 @@ class ATProtocolOAuthClient:
         self._client_id = client_id
         self._redirect_uri = redirect_uri
         self._session_store = session_store or InMemorySessionStore()
+
+    async def initiate_authorization(self, state: str) -> str:
+        """Initiate OAuth authorization flow (OAuthClient interface).
+
+        Uses server-based flow with default Bluesky PDS.
+
+        Args:
+            state: State parameter (unused by AT Protocol, which manages state internally)
+
+        Returns:
+            Authorization URL to redirect user to
+
+        Raises:
+            BlueskyAuthError: If initialization fails
+        """
+        # AT Protocol manages state internally via sessions
+        # We use server-based flow with bsky.social as default
+        _ = state  # Unused - AT Protocol generates its own state
+        return await self.initiate_authorization_by_server(
+            server_url="https://bsky.social",
+            login_hint=None,
+        )
 
     async def initiate_authorization_by_server(
         self, server_url: str, login_hint: str | None = None
@@ -207,8 +185,8 @@ class ATProtocolOAuthClient:
             )
             raise BlueskyAuthError(f"Failed to initiate authorization: {e}") from e
 
-    async def initiate_authorization(self, account_identifier: str) -> str:
-        """Initiate OAuth authorization flow using handle or DID (legacy/advanced).
+    async def initiate_authorization_by_handle(self, account_identifier: str) -> str:
+        """Initiate OAuth authorization flow using handle or DID (advanced/custom PDS).
 
         This is the handle-based approach where the user provides their full
         handle or DID upfront. This is useful for:
@@ -311,11 +289,22 @@ class ATProtocolOAuthClient:
             raise BlueskyAuthError(f"Failed to initiate authorization: {e}") from e
 
     async def complete_authorization(
-        self, code: str, state: str, iss: str
-    ) -> BlueskyUserInfo:
-        """Complete OAuth authorization flow.
+        self, code: str, state: str, iss: str | None = None
+    ) -> OAuthProviderInfo:
+        """Complete OAuth authorization flow (OAuthClient interface).
 
-        This method:
+        Args:
+            code: Authorization code from callback
+            state: State parameter from callback
+            iss: Issuer parameter from callback (required for Bluesky)
+
+        Returns:
+            Generic provider user information
+
+        Raises:
+            BlueskyAuthError: If completion fails or iss not provided
+
+        Implementation details:
         1. Retrieves OAuth session by state
         2. Verifies issuer matches expected
         3. Exchanges code for access token (with DPoP)
@@ -335,6 +324,10 @@ class ATProtocolOAuthClient:
         Raises:
             BlueskyAuthError: If completion fails or verification fails
         """
+        # Validate iss parameter
+        if not iss:
+            raise BlueskyAuthError("Bluesky OAuth requires iss parameter from callback")
+
         try:
             logger.info(f"OAuth callback received from issuer: {iss}")
 
@@ -399,7 +392,17 @@ class ATProtocolOAuthClient:
             logger.info(
                 f"OAuth login successful for {user_info.handle} (DID: {user_info.did})"
             )
-            return user_info
+
+            # Step 10: Convert to generic OAuthProviderInfo
+            return OAuthProviderInfo(
+                provider=AuthProvider.BLUESKY,
+                provider_user_id=user_info.did,  # DID is permanent identifier
+                handle=user_info.handle,
+                email=None,  # Bluesky doesn't provide email
+                display_name=user_info.display_name,
+                avatar_url=user_info.avatar_url,
+                verified=True,  # Bluesky accounts are verified via DID
+            )
 
         except BlueskyAuthError as e:
             logger.error(f"OAuth callback failed: {str(e)}", exc_info=True)
@@ -754,8 +757,18 @@ class ATProtocolOAuthClient:
 
 
 # Mock implementation for testing
-class MockBlueskyAuthClient:
-    """Mock Bluesky authentication client for development."""
+class MockBlueskyOAuthClient(BlueskyOAuthClient):
+    """Mock Bluesky OAuth client for development and testing."""
+
+    def __init__(self):
+        """Initialize mock client without real OAuth configuration."""
+        # Don't call super().__init__() - mock doesn't need real config
+        pass
+
+    async def initiate_authorization(self, state: str) -> str:
+        """Get mock authorization URL (OAuthClient interface)."""
+        _ = state  # Unused in mock
+        return await self.initiate_authorization_by_server("https://bsky.social")
 
     async def initiate_authorization_by_server(
         self, server_url: str, login_hint: str | None = None
@@ -764,23 +777,26 @@ class MockBlueskyAuthClient:
         hint_param = f"&login_hint={login_hint}" if login_hint else ""
         return f"https://bsky.app/oauth/authorize?mock=true&server={server_url}{hint_param}"
 
-    async def initiate_authorization(self, account_identifier: str) -> str:
+    async def initiate_authorization_by_handle(self, account_identifier: str) -> str:
         """Get mock authorization URL for handle-based flow."""
         return (
             f"https://bsky.app/oauth/authorize?mock=true&account={account_identifier}"
         )
 
     async def complete_authorization(
-        self, code: str, state: str, iss: str
-    ) -> BlueskyUserInfo:
-        """Complete mock authorization."""
+        self, code: str, state: str, iss: str | None = None
+    ) -> OAuthProviderInfo:
+        """Complete mock authorization (OAuthClient interface)."""
         _ = (state, iss)  # satisfy pyright
         if code == "invalid":
             raise BlueskyAuthError("Invalid authorization code")
 
-        return BlueskyUserInfo(
-            did="did:plc:mock123",
+        return OAuthProviderInfo(
+            provider=AuthProvider.BLUESKY,
+            provider_user_id="did:plc:mock123",
             handle="user.bsky.social",
+            email=None,
             display_name="Test User",
             avatar_url="https://example.com/avatar.jpg",
+            verified=True,
         )

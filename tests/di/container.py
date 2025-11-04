@@ -4,6 +4,11 @@ from dishka import AsyncContainer, make_async_container
 
 from talk.util.di import PROVIDERS, Component, get_provider
 
+# Import mock providers to register them as subclasses
+from tests.di.bluesky import MockBlueskyProvider  # noqa: F401
+from tests.di.twitter import MockTwitterProvider  # noqa: F401
+from tests.di.persistence import MockPersistenceProvider  # noqa: F401
+
 
 def build_test_container(unmock: set[Component] | None = None) -> AsyncContainer:
     """Build test container with selective unmocking.

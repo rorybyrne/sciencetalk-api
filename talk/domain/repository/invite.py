@@ -3,8 +3,7 @@
 from abc import ABC, abstractmethod
 
 from talk.domain.model.invite import Invite
-from talk.domain.value import InviteId, InviteStatus, UserId
-from talk.domain.value.types import BlueskyDID
+from talk.domain.value import AuthProvider, InviteId, InviteStatus, InviteToken, UserId
 
 
 class InviteRepository(ABC):
@@ -27,17 +26,50 @@ class InviteRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_pending_by_did(self, did: BlueskyDID) -> Invite | None:
-        """Find a pending invite by DID.
+    async def find_by_token(self, token: InviteToken) -> Invite | None:
+        """Find an invite by token.
 
-        Critical for login check - must be fast.
-        DID is the primary matching identifier (handles can change).
+        Used when user opens invite link.
 
         Args:
-            did: The invitee's DID
+            token: The invite token
+
+        Returns:
+            The invite if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def find_pending_by_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> Invite | None:
+        """Find a pending invite by provider and identity.
+
+        Critical for login check - must be fast.
+
+        Args:
+            provider: The authentication provider
+            provider_user_id: The provider-specific user ID
 
         Returns:
             The pending invite if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def exists_pending_for_provider_identity(
+        self, provider: AuthProvider, provider_user_id: str
+    ) -> bool:
+        """Check if a pending invite exists for provider/identity.
+
+        Used during invite creation to prevent duplicates.
+
+        Args:
+            provider: The authentication provider
+            provider_user_id: The provider-specific user ID
+
+        Returns:
+            True if pending invite exists, False otherwise
         """
         pass
 
@@ -52,7 +84,7 @@ class InviteRepository(ABC):
             The saved invite
 
         Raises:
-            IntegrityError: If pending invite already exists for this handle
+            IntegrityError: If pending invite already exists for this provider/identity
         """
         pass
 

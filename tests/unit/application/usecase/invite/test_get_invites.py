@@ -10,10 +10,9 @@ from talk.application.usecase.invite.get_invites import GetInvitesRequest
 from talk.domain.model.invite import Invite
 from talk.domain.model.user import User
 from talk.domain.repository import UserRepository
-from talk.domain.service import UserService
-from talk.domain.service import InviteService
-from talk.domain.value import InviteStatus, UserId
-from talk.domain.value.types import BlueskyDID, Handle
+from talk.domain.service import InviteService, UserService
+from talk.domain.value import AuthProvider, InviteStatus, InviteToken, UserId
+from talk.domain.value.types import Handle
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -27,10 +26,10 @@ class TestGetInvitesUseCase:
         """Helper to create a test user."""
         user = User(
             id=UserId(uuid4()),
-            bluesky_did=BlueskyDID(root=f"did:plc:{uuid4()}"),
-            handle=Handle(root=handle),
-            display_name="Test User",
+            handle=Handle(handle),
             avatar_url=None,
+            email=None,
+            bio=None,
             karma=0,
             invite_quota=5,
             created_at=datetime.now(),
@@ -46,8 +45,15 @@ class TestGetInvitesUseCase:
         invitee_did: str = "did:plc:default",
     ) -> Invite:
         """Helper to create an invite."""
+        # Generate unique token for each invite
+        token = InviteToken(f"token-{uuid4()}")
         return await invite_service.create_invite(
-            inviter_id, Handle(root=invitee_handle), BlueskyDID(invitee_did)
+            inviter_id,
+            AuthProvider.BLUESKY,
+            invitee_handle,
+            invitee_did,
+            None,
+            token,
         )
 
     @pytest.mark.asyncio
@@ -61,9 +67,7 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
         use_case = GetInvitesUseCase(invite_service, user_service)
 
-        request = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle)
-        )
+        request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
         response = await use_case.execute(request)
@@ -95,9 +99,7 @@ class TestGetInvitesUseCase:
         )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
-        request = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle)
-        )
+        request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
         response = await use_case.execute(request)
@@ -133,17 +135,16 @@ class TestGetInvitesUseCase:
         )
 
         # Create an accepted invite
-        await self._create_invite(
+        accepted_invite = await self._create_invite(
             invite_service, user.id, "accepted.bsky.social", "did:plc:accepted"
         )
         # Create a new user to accept the invite
         new_user = await self._create_test_user(user_repo, "accepted.bsky.social")
-        await invite_service.accept_invite(BlueskyDID("did:plc:accepted"), new_user.id)
+        await invite_service.accept_invite(accepted_invite.id, new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
             inviter_id=str(user.id),
-            inviter_handle=str(user.handle),
             status=InviteStatus.PENDING,
         )
 
@@ -173,25 +174,24 @@ class TestGetInvitesUseCase:
         )
 
         # Create accepted invites
-        await self._create_invite(
+        invite1 = await self._create_invite(
             invite_service, user.id, "accepted1.bsky.social", "did:plc:accepted1"
         )
-        await self._create_invite(
+        invite2 = await self._create_invite(
             invite_service, user.id, "accepted2.bsky.social", "did:plc:accepted2"
         )
 
         # Accept the invites
-        for handle, did in [
-            ("accepted1.bsky.social", "did:plc:accepted1"),
-            ("accepted2.bsky.social", "did:plc:accepted2"),
+        for handle, invite in [
+            ("accepted1.bsky.social", invite1),
+            ("accepted2.bsky.social", invite2),
         ]:
             new_user = await self._create_test_user(user_repo, handle)
-            await invite_service.accept_invite(BlueskyDID(did), new_user.id)
+            await invite_service.accept_invite(invite.id, new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
         request = GetInvitesRequest(
             inviter_id=str(user.id),
-            inviter_handle=str(user.handle),
             status=InviteStatus.ACCEPTED,
         )
 
@@ -225,9 +225,7 @@ class TestGetInvitesUseCase:
             )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
-        request = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle), limit=5
-        )
+        request = GetInvitesRequest(inviter_id=str(user.id), limit=5)
 
         # Act
         response = await use_case.execute(request)
@@ -258,15 +256,11 @@ class TestGetInvitesUseCase:
         use_case = GetInvitesUseCase(invite_service, user_service)
 
         # Get first page
-        request_page1 = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle), limit=5, offset=0
-        )
+        request_page1 = GetInvitesRequest(inviter_id=str(user.id), limit=5, offset=0)
         response_page1 = await use_case.execute(request_page1)
 
         # Get second page
-        request_page2 = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle), limit=5, offset=5
-        )
+        request_page2 = GetInvitesRequest(inviter_id=str(user.id), limit=5, offset=5)
         response_page2 = await use_case.execute(request_page2)
 
         # Assert
@@ -289,16 +283,14 @@ class TestGetInvitesUseCase:
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
 
         # Create and accept an invite
-        await self._create_invite(
+        invite = await self._create_invite(
             invite_service, user.id, "friend.bsky.social", "did:plc:friend"
         )
         new_user = await self._create_test_user(user_repo, "friend.bsky.social")
-        await invite_service.accept_invite(BlueskyDID("did:plc:friend"), new_user.id)
+        await invite_service.accept_invite(invite.id, new_user.id)
 
         use_case = GetInvitesUseCase(invite_service, user_service)
-        request = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle)
-        )
+        request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
         response = await use_case.execute(request)
@@ -328,9 +320,7 @@ class TestGetInvitesUseCase:
         )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
-        request = GetInvitesRequest(
-            inviter_id=str(user.id), inviter_handle=str(user.handle)
-        )
+        request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
         response = await use_case.execute(request)
@@ -354,9 +344,7 @@ class TestGetInvitesUseCase:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            GetInvitesRequest(
-                inviter_id=str(user.id), inviter_handle=str(user.handle), limit=101
-            )
+            GetInvitesRequest(inviter_id=str(user.id), limit=101)
 
     @pytest.mark.asyncio
     async def test_get_invites_isolates_users(self, unit_env):
@@ -383,9 +371,7 @@ class TestGetInvitesUseCase:
         )
 
         use_case = GetInvitesUseCase(invite_service, user_service)
-        request = GetInvitesRequest(
-            inviter_id=str(user1.id), inviter_handle=str(user1.handle)
-        )
+        request = GetInvitesRequest(inviter_id=str(user1.id))
 
         # Act
         response = await use_case.execute(request)

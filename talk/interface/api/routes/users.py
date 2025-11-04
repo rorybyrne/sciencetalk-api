@@ -45,7 +45,7 @@ async def get_user_profile(
     """
     # Execute use case
     user_profile = await get_user_profile_use_case.execute(
-        GetUserProfileRequest(handle=Handle(root=handle))
+        GetUserProfileRequest(handle=Handle(handle))
     )
 
     if not user_profile:

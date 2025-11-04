@@ -65,18 +65,27 @@ class InviteStatus(str, Enum):
     ACCEPTED = "accepted"
 
 
-class Handle(RootValueObject[str]):
-    """Bluesky handle (e.g., username.bsky.social).
+class AuthProvider(str, Enum):
+    """Supported authentication providers."""
 
-    Represents a user's human-readable identifier on the AT Protocol network.
+    BLUESKY = "bluesky"
+    ORCID = "orcid"
+    TWITTER = "twitter"
+
+
+class Handle(RootValueObject[str]):
+    """User handle from any authentication provider.
+
+    Represents a user's human-readable identifier:
+    - Bluesky: username.bsky.social
+    - Twitter: @username or username
+    - ORCID: Full ORCID iD (not typically used as handle, but email)
     """
 
     @field_validator("root")
     @classmethod
     def validate_handle_format(cls, v: str) -> str:
-        """Validate handle contains a dot (username.domain format)."""
-        if "." not in v:
-            raise ValueError("Handle must be in format: username.domain")
+        """Validate handle is not empty and within length limits."""
         if len(v) < 1 or len(v) > 255:
             raise ValueError("Handle must be 1-255 characters")
         return v
@@ -100,14 +109,28 @@ class BlueskyDID(RootValueObject[str]):
         return v
 
 
-class UserAuthInfo(ValueObject):
-    """User authentication information from external provider.
+class InviteToken(RootValueObject[str]):
+    """URL-safe invite token."""
 
-    Represents the authenticated user's identity and profile information
-    obtained from an OAuth provider (e.g., Bluesky).
+    @field_validator("root")
+    @classmethod
+    def validate_token_format(cls, v: str) -> str:
+        """Validate token is not empty."""
+        if len(v) < 1 or len(v) > 255:
+            raise ValueError("Token must be 1-255 characters")
+        return v
+
+
+class OAuthProviderInfo(ValueObject):
+    """OAuth provider information.
+
+    Generic structure for user info returned from any OAuth provider.
     """
 
-    did: str
-    handle: str
+    provider: AuthProvider
+    provider_user_id: str  # Permanent ID (DID, ORCID iD, Twitter username)
+    handle: str  # Display handle
+    email: str | None = None
     display_name: str | None = None
     avatar_url: str | None = None
+    verified: bool = False  # Provider-specific verification status

@@ -1,82 +1,93 @@
 """Authentication domain service."""
 
-from talk.adapter.bluesky.auth import BlueskyAuthClient
-from talk.domain.value.types import UserAuthInfo
+from talk.domain.value.types import AuthProvider, OAuthProviderInfo
 
 from .base import Service
 
 
-class AuthService(Service):
-    """Domain service for authentication operations.
+class OAuthClient:
+    """Generic OAuth client interface for all providers."""
 
-    Wraps the AT Protocol OAuth client to provide domain-level
-    authentication operations.
-    """
-
-    def __init__(self, bluesky_client: BlueskyAuthClient) -> None:
-        """Initialize auth service.
+    async def initiate_authorization(self, state: str) -> str:
+        """Initiate OAuth authorization flow.
 
         Args:
-            bluesky_client: Bluesky authentication client
-        """
-        self.bluesky_client = bluesky_client
-
-    async def initiate_login_with_server(
-        self, server_url: str = "https://bsky.social", login_hint: str | None = None
-    ) -> str:
-        """Initiate OAuth login flow using server identifier (recommended).
-
-        This is the recommended approach for most users. No handle required upfront.
-
-        Args:
-            server_url: PDS URL (defaults to Bluesky)
-            login_hint: Optional hint for auth server (email, handle fragment)
+            state: State parameter for CSRF protection
 
         Returns:
             Authorization URL to redirect user to
-
-        Raises:
-            BlueskyAuthError: If initialization fails
         """
-        return await self.bluesky_client.initiate_authorization_by_server(
-            server_url, login_hint
-        )
+        raise NotImplementedError
 
-    async def initiate_login(self, account: str) -> str:
-        """Initiate OAuth login flow using handle or DID (advanced/legacy).
-
-        This is the handle-based approach for advanced users or custom PDS.
-
-        Args:
-            account: Bluesky handle (e.g., "alice.bsky.social") or DID
-
-        Returns:
-            Authorization URL to redirect user to
-
-        Raises:
-            BlueskyAuthError: If initialization fails
-        """
-        return await self.bluesky_client.initiate_authorization(account)
-
-    async def complete_login(self, code: str, state: str, iss: str) -> UserAuthInfo:
-        """Complete OAuth login flow.
+    async def complete_authorization(
+        self, code: str, state: str, iss: str | None = None
+    ) -> OAuthProviderInfo:
+        """Complete OAuth authorization flow.
 
         Args:
             code: Authorization code from OAuth callback
-            state: State parameter for session verification
-            iss: Issuer parameter for verification
+            state: State parameter for verification
+            iss: Issuer URL (optional, required by some providers like Bluesky)
 
         Returns:
-            User authentication information
+            Provider user information
+        """
+        raise NotImplementedError
+
+
+class AuthService(Service):
+    """Domain service for multi-provider authentication operations.
+
+    Coordinates authentication across multiple OAuth providers
+    (Bluesky, ORCID, Twitter).
+    """
+
+    def __init__(self, oauth_clients: dict[AuthProvider, OAuthClient]) -> None:
+        """Initialize auth service.
+
+        Args:
+            oauth_clients: Map of provider to OAuth client implementation
+        """
+        self.oauth_clients = oauth_clients
+
+    async def initiate_login(self, provider: AuthProvider, state: str) -> str:
+        """Initiate OAuth login flow for any provider.
+
+        Args:
+            provider: Authentication provider to use
+            state: State parameter for CSRF protection
+
+        Returns:
+            Authorization URL to redirect user to
 
         Raises:
-            BlueskyAuthError: If completion fails
+            ValueError: If provider not supported
         """
-        user_info = await self.bluesky_client.complete_authorization(code, state, iss)
+        client = self.oauth_clients.get(provider)
+        if not client:
+            raise ValueError(f"Unsupported provider: {provider}")
 
-        return UserAuthInfo(
-            did=user_info.did,
-            handle=user_info.handle,
-            display_name=user_info.display_name,
-            avatar_url=user_info.avatar_url,
-        )
+        return await client.initiate_authorization(state)
+
+    async def complete_login(
+        self, provider: AuthProvider, code: str, state: str, iss: str | None = None
+    ) -> OAuthProviderInfo:
+        """Complete OAuth login flow for any provider.
+
+        Args:
+            provider: Authentication provider used
+            code: Authorization code from OAuth callback
+            state: State parameter for verification
+            iss: Issuer URL (optional, required by Bluesky, unused by other providers)
+
+        Returns:
+            User authentication information from provider
+
+        Raises:
+            ValueError: If provider not supported
+        """
+        client = self.oauth_clients.get(provider)
+        if not client:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        return await client.complete_authorization(code, state, iss)

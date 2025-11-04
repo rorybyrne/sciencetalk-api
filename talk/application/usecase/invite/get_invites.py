@@ -23,7 +23,6 @@ class GetInvitesRequest(BaseModel):
     """Get invites request."""
 
     inviter_id: str  # User ID from auth
-    inviter_handle: str  # User handle from auth
     status: InviteStatus | None = None
     limit: int = Field(default=50, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
@@ -87,7 +86,7 @@ class GetInvitesUseCase:
         invite_items = [
             InviteItem(
                 invite_id=str(invite.id),
-                inviter_handle=request.inviter_handle,
+                inviter_handle=user.handle.root,
                 invitee_handle=str(invite.invitee_handle),
                 status=invite.status,
                 created_at=invite.created_at,
