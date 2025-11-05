@@ -2,14 +2,14 @@
 
 from datetime import datetime
 
-from dishka.integrations.fastapi import FromDishka
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from talk.config import Settings
 
 
-router = APIRouter(tags=["health"])
+router = APIRouter(tags=["health"], route_class=DishkaRoute)
 
 
 class HealthResponse(BaseModel):
