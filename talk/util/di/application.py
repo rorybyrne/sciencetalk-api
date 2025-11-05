@@ -69,12 +69,14 @@ class ProdApplicationProvider(ProviderBase):
         jwt_service: JWTService,
         user_repository: UserRepository,
         invite_service: InviteService,
+        user_identity_service: UserIdentityService,
     ) -> GetCurrentUserUseCase:
         """Provide get current user use case."""
         return GetCurrentUserUseCase(
             jwt_service=jwt_service,
             user_repository=user_repository,
             invite_service=invite_service,
+            user_identity_service=user_identity_service,
         )
 
     # Post use cases
@@ -173,10 +175,12 @@ class ProdApplicationProvider(ProviderBase):
     # User use cases
     @provide(scope=Scope.REQUEST)
     def get_get_user_profile_use_case(
-        self, user_service: UserService
+        self, user_service: UserService, user_identity_service: UserIdentityService
     ) -> GetUserProfileUseCase:
         """Provide get user profile use case."""
-        return GetUserProfileUseCase(user_service=user_service)
+        return GetUserProfileUseCase(
+            user_service=user_service, user_identity_service=user_identity_service
+        )
 
     @provide(scope=Scope.REQUEST)
     def get_update_user_profile_use_case(
