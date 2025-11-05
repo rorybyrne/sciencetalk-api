@@ -110,6 +110,7 @@ async def remove_vote_from_post(
         )
 
     try:
+        # TODO: use service, not usecase
         user = await get_current_user_use_case.execute(
             GetCurrentUserRequest(token=auth_token)
         )

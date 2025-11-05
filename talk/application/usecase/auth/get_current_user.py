@@ -59,6 +59,7 @@ class GetCurrentUserUseCase:
             invite_service: Invite domain service
         """
         self.jwt_service = jwt_service
+        # TODO: use service, not repository
         self.user_repository = user_repository
         self.invite_service = invite_service
 

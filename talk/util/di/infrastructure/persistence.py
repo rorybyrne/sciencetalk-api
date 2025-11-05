@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 
 from dishka import Scope, provide
+import logfire
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from talk.config import Settings
@@ -70,7 +71,9 @@ class ProdPersistenceProvider(PersistenceProvider):
             try:
                 yield session
                 await session.commit()
-            except Exception:
+                logfire.info("Session committed")
+            except Exception as e:
+                logfire.warn("Session rollback", error=str(e))
                 await session.rollback()
                 raise
 
