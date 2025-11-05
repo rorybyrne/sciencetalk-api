@@ -14,6 +14,7 @@ class InviteItem(BaseModel):
     invite_id: str
     inviter_handle: str
     invitee_handle: str
+    invite_token: str
     status: InviteStatus
     created_at: datetime
     accepted_at: datetime | None = None
@@ -88,6 +89,7 @@ class GetInvitesUseCase:
                 invite_id=str(invite.id),
                 inviter_handle=user.handle.root,
                 invitee_handle=str(invite.invitee_handle),
+                invite_token=invite.invite_token.root,
                 status=invite.status,
                 created_at=invite.created_at,
                 accepted_at=invite.accepted_at,
