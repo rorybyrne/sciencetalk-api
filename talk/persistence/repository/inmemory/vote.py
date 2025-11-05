@@ -1,6 +1,6 @@
 """In-memory vote repository for testing."""
 
-from typing import Optional
+from typing import Optional, Sequence, Union
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -112,3 +112,22 @@ class InMemoryVoteRepository(VoteRepository):
             for v in self._votes
             if v.votable_type == votable_type and v.votable_id == votable_uuid
         )
+
+    async def find_by_user_and_votables(
+        self,
+        user_id: UserId,
+        votable_type: VotableType,
+        votable_ids: Sequence[Union[PostId, CommentId]],
+    ) -> list[Vote]:
+        """Find a user's votes on multiple items (batch query)."""
+        if not votable_ids:
+            return []
+
+        votable_uuids = {UUID(str(vid)) for vid in votable_ids}
+        return [
+            v
+            for v in self._votes
+            if v.user_id == user_id
+            and v.votable_type == votable_type
+            and v.votable_id in votable_uuids
+        ]

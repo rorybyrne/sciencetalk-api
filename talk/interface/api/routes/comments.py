@@ -98,18 +98,22 @@ async def create_comment(
 async def get_comments(
     post_id: str,
     get_comments_use_case: FromDishka[GetCommentsUseCase],
+    auth_token: str | None = Cookie(default=None),
 ) -> GetCommentsResponse:
     """Get all comments for a post in tree order.
 
     Comments are returned in tree order (using ltree path)
     for efficient rendering of threaded discussions.
 
+    If authenticated, includes vote state for each comment.
+
     Args:
         post_id: Post UUID
         get_comments_use_case: Get comments use case from DI
+        auth_token: JWT token from cookie (optional)
 
     Returns:
-        List of comments in tree order
+        List of comments in tree order with vote state
     """
-    request = GetCommentsRequest(post_id=post_id)
+    request = GetCommentsRequest(post_id=post_id, auth_token=auth_token)
     return await get_comments_use_case.execute(request)

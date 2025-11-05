@@ -1,6 +1,6 @@
 """PostgreSQL implementation of Vote repository."""
 
-from typing import List, Optional, Union
+from typing import List, Optional, Sequence, Union
 
 from sqlalchemy import and_, delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,3 +119,24 @@ class PostgresVoteRepository(VoteRepository):
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
+
+    async def find_by_user_and_votables(
+        self,
+        user_id: UserId,
+        votable_type: VotableType,
+        votable_ids: Sequence[Union[PostId, CommentId]],
+    ) -> List[Vote]:
+        """Find a user's votes on multiple items (batch query)."""
+        if not votable_ids:
+            return []
+
+        stmt = select(votes_table).where(
+            and_(
+                votes_table.c.user_id == user_id,
+                votes_table.c.votable_type == votable_type.value,
+                votes_table.c.votable_id.in_(votable_ids),
+            )
+        )
+        result = await self.session.execute(stmt)
+        rows = result.fetchall()
+        return [row_to_vote(row._asdict()) for row in rows]

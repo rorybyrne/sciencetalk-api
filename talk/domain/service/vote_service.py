@@ -238,3 +238,31 @@ class VoteService(Service):
                 )
 
             return deleted
+
+    async def get_user_votes_for_comments(
+        self, user_id: UserId, comment_ids: list[CommentId]
+    ) -> dict[CommentId, bool]:
+        """Check which comments a user has voted on.
+
+        Args:
+            user_id: User ID
+            comment_ids: List of comment IDs to check
+
+        Returns:
+            Dictionary mapping comment ID to whether user has voted
+        """
+        if not comment_ids:
+            return {}
+
+        # Batch query to fetch all votes at once (avoid N+1)
+        votes_list = await self.vote_repository.find_by_user_and_votables(
+            user_id=user_id,
+            votable_type=VotableType.COMMENT,
+            votable_ids=comment_ids,
+        )
+
+        # Convert list of votes to set of voted IDs for O(1) lookup
+        voted_ids = {UUID(str(vote.votable_id)) for vote in votes_list}
+
+        # Map each comment ID to boolean (True if voted, False otherwise)
+        return {cid: UUID(str(cid)) in voted_ids for cid in comment_ids}

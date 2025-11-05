@@ -1,7 +1,7 @@
 """Vote repository interface."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List, Optional, Sequence, Union
 
 from talk.domain.model.vote import Vote
 from talk.domain.value import CommentId, PostId, UserId, VotableType, VoteId
@@ -136,5 +136,24 @@ class VoteRepository(ABC):
 
         Returns:
             Number of votes
+        """
+        pass
+
+    @abstractmethod
+    async def find_by_user_and_votables(
+        self,
+        user_id: UserId,
+        votable_type: VotableType,
+        votable_ids: Sequence[Union[PostId, CommentId]],
+    ) -> List[Vote]:
+        """Find a user's votes on multiple items (batch query).
+
+        Args:
+            user_id: The user's ID
+            votable_type: Type of items (post or comment)
+            votable_ids: List of item IDs to check
+
+        Returns:
+            List of votes by the user on the specified items
         """
         pass

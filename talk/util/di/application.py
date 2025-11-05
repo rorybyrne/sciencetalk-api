@@ -118,10 +118,17 @@ class ProdApplicationProvider(ProviderBase):
 
     @provide(scope=Scope.REQUEST)
     def get_get_comments_use_case(
-        self, comment_service: CommentService
+        self,
+        comment_service: CommentService,
+        vote_service: VoteService,
+        jwt_service: JWTService,
     ) -> GetCommentsUseCase:
         """Provide get comments use case."""
-        return GetCommentsUseCase(comment_service=comment_service)
+        return GetCommentsUseCase(
+            comment_service=comment_service,
+            vote_service=vote_service,
+            jwt_service=jwt_service,
+        )
 
     # Vote use cases
     @provide(scope=Scope.REQUEST)
