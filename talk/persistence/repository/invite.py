@@ -46,7 +46,7 @@ class PostgresInviteRepository(InviteRepository):
         Returns:
             Invite if found, None otherwise
         """
-        stmt = select(invites_table).where(invites_table.c.invite_token == token)
+        stmt = select(invites_table).where(invites_table.c.invite_token == token.root)
         result = await self.session.execute(stmt)
         row = result.mappings().first()
         return row_to_invite(dict(row)) if row else None
