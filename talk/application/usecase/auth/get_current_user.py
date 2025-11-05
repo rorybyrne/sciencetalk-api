@@ -7,8 +7,8 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from talk.domain.repository import UserRepository
-from talk.domain.service import InviteService, JWTService
-from talk.domain.value import UserId
+from talk.domain.service import InviteService, JWTService, UserIdentityService
+from talk.domain.value import AuthProvider, UserId
 from talk.domain.value.types import Handle, InviteStatus
 
 
@@ -28,6 +28,14 @@ class InviteInfo(BaseModel):
     accepted_at: datetime | None
 
 
+class UserIdentityInfo(BaseModel):
+    """User identity information for response."""
+
+    provider: AuthProvider
+    provider_handle: str
+    is_primary: bool
+
+
 class GetCurrentUserResponse(BaseModel):
     """Get current user response."""
 
@@ -40,6 +48,7 @@ class GetCurrentUserResponse(BaseModel):
     created_at: datetime
     invite_quota: int
     invitations: list[InviteInfo]
+    identities: list[UserIdentityInfo]
 
 
 class GetCurrentUserUseCase:
@@ -50,6 +59,7 @@ class GetCurrentUserUseCase:
         jwt_service: JWTService,
         user_repository: UserRepository,
         invite_service: InviteService,
+        user_identity_service: UserIdentityService,
     ) -> None:
         """Initialize get current user use case.
 
@@ -57,11 +67,13 @@ class GetCurrentUserUseCase:
             jwt_service: JWT token domain service
             user_repository: User repository
             invite_service: Invite domain service
+            user_identity_service: User identity domain service
         """
         self.jwt_service = jwt_service
         # TODO: use service, not repository
         self.user_repository = user_repository
         self.invite_service = invite_service
+        self.user_identity_service = user_identity_service
 
     async def execute(
         self, request: GetCurrentUserRequest
@@ -72,7 +84,8 @@ class GetCurrentUserUseCase:
         1. Verify JWT token via JWT service
         2. Extract user_id from token
         3. Load user from database
-        4. Return user info
+        4. Load user's invitations and identities
+        5. Return user info
 
         Args:
             request: Request with JWT token
@@ -95,6 +108,11 @@ class GetCurrentUserUseCase:
         # Load user's invitations
         invites = await self.invite_service.list_invites(user.id)
 
+        # Load user's linked identities
+        identities = await self.user_identity_service.get_all_identities_for_user(
+            user.id
+        )
+
         return GetCurrentUserResponse(
             user_id=str(user.id),
             handle=user.handle,
@@ -113,5 +131,13 @@ class GetCurrentUserUseCase:
                     accepted_at=invite.accepted_at,
                 )
                 for invite in invites
+            ],
+            identities=[
+                UserIdentityInfo(
+                    provider=identity.provider,
+                    provider_handle=identity.provider_handle,
+                    is_primary=identity.is_primary,
+                )
+                for identity in identities
             ],
         )

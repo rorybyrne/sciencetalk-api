@@ -81,6 +81,7 @@ class ListPostsUseCase:
             tag_filter = TagName(request.tag) if request.tag else None
 
             # Fetch total count and posts in parallel
+            # TODO: is this very expensive?
             total = await self.post_repository.count(
                 tag=tag_filter,
                 include_deleted=False,  # Never show deleted posts
