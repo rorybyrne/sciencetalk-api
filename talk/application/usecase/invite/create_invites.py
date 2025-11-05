@@ -12,6 +12,7 @@ from talk.adapter.bluesky.identity import (
 )
 from talk.application.usecase.base import BaseUseCase
 from talk.config import Settings
+from talk.domain.model.invite import Invite
 from talk.domain.service import InviteService, UserIdentityService, UserService
 from talk.domain.value import AuthProvider, InviteStatus, InviteToken, UserId
 from talk.domain.value.types import Handle
@@ -130,8 +131,8 @@ class CreateInvitesUseCase(BaseUseCase):
                 )
 
             # Create invites
-            created_invites = []
-            failed_invitees = []
+            created_invites: list[Invite] = []
+            failed_invitees: list[str] = []
 
             for invitee in request.invitees:
                 try:

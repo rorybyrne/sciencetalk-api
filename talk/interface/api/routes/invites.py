@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from talk.application.usecase.invite import (
     CreateInvitesUseCase,
     GetInvitesUseCase,
+    ValidateInviteUseCase,
 )
 from talk.application.usecase.invite.create_invites import (
     CreateInvitesRequest,
@@ -16,6 +17,10 @@ from talk.application.usecase.invite.create_invites import (
 from talk.application.usecase.invite.get_invites import (
     GetInvitesRequest,
     GetInvitesResponse,
+)
+from talk.application.usecase.invite.validate_invite import (
+    ValidateInviteRequest,
+    ValidateInviteResponse,
 )
 from talk.domain.service import JWTService
 from talk.domain.value import AuthProvider, InviteStatus
@@ -147,4 +152,39 @@ async def get_invites(
         offset=offset,
     )
     response = await get_invites_use_case.execute(request)
+    return response
+
+
+@router.get("/validate/{token}", response_model=ValidateInviteResponse)
+async def validate_invite(
+    token: str,
+    validate_invite_use_case: FromDishka[ValidateInviteUseCase],
+) -> ValidateInviteResponse:
+    """Validate an invite token.
+
+    This endpoint is public (no authentication required) so users can check
+    if an invite link is valid before signing in.
+
+    Args:
+        token: Invite token from URL
+        validate_invite_use_case: Validate invite use case from DI
+
+    Returns:
+        Validation result with invite details or error message
+
+    Example:
+        GET /invites/validate/abc123xyz
+
+        Response:
+        {
+            "valid": true,
+            "status": "pending",
+            "provider": "bluesky",
+            "invitee_handle": "alice.bsky.social",
+            "invitee_name": "Alice",
+            "message": "Valid invite"
+        }
+    """
+    request = ValidateInviteRequest(token=token)
+    response = await validate_invite_use_case.execute(request)
     return response
