@@ -103,7 +103,9 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t talk:${{ github.sha }} .
+          docker build \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            -t talk:${{ github.sha }} .
 
       - name: Push to Lightsail
         id: push

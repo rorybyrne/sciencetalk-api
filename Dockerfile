@@ -25,6 +25,9 @@ RUN uv sync --frozen
 # Production stage
 FROM python:3.11-slim
 
+# Accept build argument for git SHA
+ARG GIT_SHA=unknown
+
 # Set working directory
 WORKDIR /app
 
@@ -37,6 +40,9 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY talk/ ./talk/
+
+# Write git SHA to version file
+RUN echo "${GIT_SHA}" > /app/version.txt
 
 # Copy migrations
 COPY migrations/ ./migrations/

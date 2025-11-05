@@ -53,7 +53,7 @@ def configure_logfire(settings: Settings) -> None:
     # Build configuration kwargs
     config_kwargs = {
         "service_name": "talk-backend",
-        "service_version": "1.0.0",
+        "service_version": settings.git_sha,  # Use git SHA as version
         "environment": settings.environment,
         "send_to_logfire": send_to_logfire,
         "console": logfire.ConsoleOptions(
@@ -79,6 +79,7 @@ def configure_logfire(settings: Settings) -> None:
         debug=settings.debug,
         send_to_logfire=send_to_logfire,
         has_token=bool(settings.observability.logfire_token),
+        git_sha=settings.git_sha,
     )
 
 

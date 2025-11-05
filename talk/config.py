@@ -1,5 +1,6 @@
 """Application configuration."""
 
+from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -140,6 +141,9 @@ class Settings(BaseSettings):
     environment: Literal["test", "development", "staging", "production"] = "development"
     debug: bool = False
 
+    # Git commit SHA (loaded from version.txt file or defaults to "unknown")
+    git_sha: str = "unknown"
+
     # Host configuration (all URLs computed from these)
     host: str = "localhost"
     port: int = 8000
@@ -174,7 +178,27 @@ class Settings(BaseSettings):
         self.auth.bluesky_callback_url = f"{self.api.base_url}/auth/callback/bluesky"
         self.auth.twitter_callback_url = f"{self.api.base_url}/auth/callback/twitter"
 
+        # Load git SHA from version file if it exists
+        self.git_sha = self._load_git_sha()
+
         return self
+
+    @staticmethod
+    def _load_git_sha() -> str:
+        """Load git SHA from version file.
+
+        Returns:
+            Git SHA if version file exists, otherwise "unknown"
+        """
+        version_file = Path("/app/version.txt")
+        if version_file.exists():
+            try:
+                return version_file.read_text().strip()
+            except Exception:
+                # If we can't read the file, fall back to unknown
+                return "unknown"
+        # In development, version file may not exist
+        return "unknown"
 
     @property
     def database_url(self) -> str:

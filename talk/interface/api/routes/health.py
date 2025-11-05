@@ -2,8 +2,11 @@
 
 from datetime import datetime
 
+from dishka.integrations.fastapi import FromDishka
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
+
+from talk.config import Settings
 
 
 router = APIRouter(tags=["health"])
@@ -15,6 +18,7 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
     version: str
+    git_sha: str
 
 
 class CORSDebugResponse(BaseModel):
@@ -27,7 +31,7 @@ class CORSDebugResponse(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
+async def health_check(settings: FromDishka[Settings]) -> HealthResponse:
     """Basic health check endpoint.
 
     Returns:
@@ -37,6 +41,7 @@ async def health_check() -> HealthResponse:
         status="healthy",
         timestamp=datetime.now(),
         version="0.1.0",
+        git_sha=settings.git_sha,
     )
 
 
