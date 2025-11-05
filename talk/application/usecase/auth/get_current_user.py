@@ -22,6 +22,7 @@ class InviteInfo(BaseModel):
     """Invite information for response."""
 
     id: str
+    provider: AuthProvider  # Target authentication provider
     invitee_handle: str
     status: InviteStatus  # "pending" or "accepted"
     created_at: datetime
@@ -125,6 +126,7 @@ class GetCurrentUserUseCase:
             invitations=[
                 InviteInfo(
                     id=str(invite.id),
+                    provider=invite.provider,
                     invitee_handle=invite.invitee_handle,
                     status=invite.status,
                     created_at=invite.created_at,

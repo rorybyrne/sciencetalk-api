@@ -6,13 +6,14 @@ from pydantic import BaseModel, Field
 
 from talk.config import Settings
 from talk.domain.service import InviteService, UserService
-from talk.domain.value import InviteStatus, UserId
+from talk.domain.value import AuthProvider, InviteStatus, UserId
 
 
 class InviteItem(BaseModel):
     """Invite item in response."""
 
     invite_id: str
+    provider: AuthProvider  # Target authentication provider
     inviter_handle: str
     invitee_handle: str
     invite_url: str
@@ -95,6 +96,7 @@ class GetInvitesUseCase:
         invite_items = [
             InviteItem(
                 invite_id=str(invite.id),
+                provider=invite.provider,
                 inviter_handle=user.handle.root,
                 invitee_handle=str(invite.invitee_handle),
                 invite_url=f"{frontend_url}/invites/{invite.invite_token.root}",
