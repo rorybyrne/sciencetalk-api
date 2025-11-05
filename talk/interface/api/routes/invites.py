@@ -39,7 +39,7 @@ class CreateInvitesAPIRequest(BaseModel):
 
 
 @router.post(
-    "/", response_model=CreateInvitesResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=CreateInvitesResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_invites(
     request: CreateInvitesAPIRequest,
@@ -99,7 +99,7 @@ async def create_invites(
         )
 
 
-@router.get("/", response_model=GetInvitesResponse)
+@router.get("", response_model=GetInvitesResponse)
 async def get_invites(
     get_invites_use_case: FromDishka[GetInvitesUseCase],
     jwt_service: FromDishka[JWTService],

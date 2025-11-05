@@ -36,9 +36,7 @@ class CreatePostAPIRequest(BaseModel):
     text: str | None = Field(default=None, max_length=10000)
 
 
-@router.post(
-    "/", response_model=CreatePostResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("", response_model=CreatePostResponse, status_code=status.HTTP_201_CREATED)
 async def create_post(
     request: CreatePostAPIRequest,
     create_post_use_case: FromDishka[CreatePostUseCase],
@@ -177,7 +175,7 @@ async def get_post(
         )
 
 
-@router.get("/", response_model=ListPostsResponse)
+@router.get("", response_model=ListPostsResponse)
 async def list_posts(
     list_posts_use_case: FromDishka[ListPostsUseCase],
     get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
