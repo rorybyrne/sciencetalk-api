@@ -1,5 +1,6 @@
 """Invite domain service."""
 
+import logfire
 from datetime import datetime
 from uuid import uuid4
 
@@ -46,28 +47,48 @@ class InviteService(Service):
         Raises:
             ValueError: If pending invite already exists
         """
-        # Check if pending invite already exists
-        existing = await self.invite_repository.exists_pending_for_provider_identity(
-            provider, invitee_provider_id
-        )
-        if existing:
-            raise ValueError(
-                f"Invite already exists for {provider}:{invitee_provider_id}"
+        with logfire.span(
+            "invite_service.create_invite",
+            inviter_id=str(inviter_id),
+            provider=provider.value,
+            invitee_handle=invitee_handle,
+        ):
+            # Check if pending invite already exists
+            existing = (
+                await self.invite_repository.exists_pending_for_provider_identity(
+                    provider, invitee_provider_id
+                )
+            )
+            if existing:
+                logfire.warn(
+                    "Invite already exists",
+                    provider=provider.value,
+                    invitee_provider_id=invitee_provider_id,
+                )
+                raise ValueError(
+                    f"Invite already exists for {provider}:{invitee_provider_id}"
+                )
+
+            invite = Invite(
+                id=InviteId(uuid4()),
+                inviter_id=inviter_id,
+                provider=provider,
+                invitee_handle=invitee_handle,
+                invitee_provider_id=invitee_provider_id,
+                invitee_name=invitee_name,
+                invite_token=invite_token,
+                status=InviteStatus.PENDING,
+                created_at=datetime.now(),
             )
 
-        invite = Invite(
-            id=InviteId(uuid4()),
-            inviter_id=inviter_id,
-            provider=provider,
-            invitee_handle=invitee_handle,
-            invitee_provider_id=invitee_provider_id,
-            invitee_name=invitee_name,
-            invite_token=invite_token,
-            status=InviteStatus.PENDING,
-            created_at=datetime.now(),
-        )
-
-        return await self.invite_repository.save(invite)
+            saved = await self.invite_repository.save(invite)
+            logfire.info(
+                "Invite created",
+                invite_id=str(saved.id),
+                inviter_id=str(inviter_id),
+                invitee_handle=invitee_handle,
+            )
+            return saved
 
     async def get_invite_by_token(self, token: InviteToken) -> Invite | None:
         """Get invite by token.
@@ -78,7 +99,19 @@ class InviteService(Service):
         Returns:
             Invite if found, None otherwise
         """
-        return await self.invite_repository.find_by_token(token)
+        with logfire.span(
+            "invite_service.get_invite_by_token", token=token.root[:8] + "..."
+        ):
+            invite = await self.invite_repository.find_by_token(token)
+            if invite:
+                logfire.info(
+                    "Invite found",
+                    invite_id=str(invite.id),
+                    status=invite.status.value,
+                )
+            else:
+                logfire.warn("Invite not found", token=token.root[:8] + "...")
+            return invite
 
     async def accept_invite(self, invite_id: InviteId, new_user_id: UserId) -> Invite:
         """Mark an invite as accepted.
@@ -93,19 +126,33 @@ class InviteService(Service):
         Raises:
             ValueError: If invite not found
         """
-        invite = await self.invite_repository.find_by_id(invite_id)
-        if not invite:
-            raise ValueError(f"Invite {invite_id} not found")
+        with logfire.span(
+            "invite_service.accept_invite",
+            invite_id=str(invite_id),
+            new_user_id=str(new_user_id),
+        ):
+            invite = await self.invite_repository.find_by_id(invite_id)
+            if not invite:
+                logfire.error(
+                    "Invite not found for acceptance", invite_id=str(invite_id)
+                )
+                raise ValueError(f"Invite {invite_id} not found")
 
-        accepted_invite = invite.model_copy(
-            update={
-                "status": InviteStatus.ACCEPTED,
-                "accepted_at": datetime.now(),
-                "accepted_by_user_id": new_user_id,
-            }
-        )
+            accepted_invite = invite.model_copy(
+                update={
+                    "status": InviteStatus.ACCEPTED,
+                    "accepted_at": datetime.now(),
+                    "accepted_by_user_id": new_user_id,
+                }
+            )
 
-        return await self.invite_repository.save(accepted_invite)
+            saved = await self.invite_repository.save(accepted_invite)
+            logfire.info(
+                "Invite accepted",
+                invite_id=str(invite_id),
+                new_user_id=str(new_user_id),
+            )
+            return saved
 
     async def check_invite_exists(
         self, provider: AuthProvider, provider_user_id: str
@@ -121,9 +168,21 @@ class InviteService(Service):
         Returns:
             True if pending invite exists, False otherwise
         """
-        return await self.invite_repository.exists_pending_for_provider_identity(
-            provider, provider_user_id
-        )
+        with logfire.span(
+            "invite_service.check_invite_exists",
+            provider=provider.value,
+            provider_user_id=provider_user_id,
+        ):
+            exists = await self.invite_repository.exists_pending_for_provider_identity(
+                provider, provider_user_id
+            )
+            logfire.info(
+                "Invite existence check",
+                provider=provider.value,
+                provider_user_id=provider_user_id,
+                exists=exists,
+            )
+            return exists
 
     async def get_pending_count(self, inviter_id: UserId) -> int:
         """Get count of pending invites for a user.
@@ -136,9 +195,18 @@ class InviteService(Service):
         Returns:
             Number of pending invites
         """
-        return await self.invite_repository.count_by_inviter(
-            inviter_id, InviteStatus.PENDING
-        )
+        with logfire.span(
+            "invite_service.get_pending_count", inviter_id=str(inviter_id)
+        ):
+            count = await self.invite_repository.count_by_inviter(
+                inviter_id, InviteStatus.PENDING
+            )
+            logfire.info(
+                "Pending invite count retrieved",
+                inviter_id=str(inviter_id),
+                count=count,
+            )
+            return count
 
     async def list_invites(
         self,
@@ -158,9 +226,22 @@ class InviteService(Service):
         Returns:
             List of invites
         """
-        return await self.invite_repository.find_by_inviter(
-            inviter_id, status, limit, offset
-        )
+        with logfire.span(
+            "invite_service.list_invites",
+            inviter_id=str(inviter_id),
+            status=status.value if status else None,
+            limit=limit,
+            offset=offset,
+        ):
+            invites = await self.invite_repository.find_by_inviter(
+                inviter_id, status, limit, offset
+            )
+            logfire.info(
+                "Invites listed",
+                inviter_id=str(inviter_id),
+                count=len(invites),
+            )
+            return invites
 
     async def get_available_quota(self, user_quota: int, inviter_id: UserId) -> int:
         """Calculate available invite quota for a user.
@@ -174,8 +255,21 @@ class InviteService(Service):
         Returns:
             Number of invites user can still create
         """
-        pending_count = await self.get_pending_count(inviter_id)
-        return max(0, user_quota - pending_count)
+        with logfire.span(
+            "invite_service.get_available_quota",
+            user_quota=user_quota,
+            inviter_id=str(inviter_id),
+        ):
+            pending_count = await self.get_pending_count(inviter_id)
+            available = max(0, user_quota - pending_count)
+            logfire.info(
+                "Available quota calculated",
+                inviter_id=str(inviter_id),
+                user_quota=user_quota,
+                pending_count=pending_count,
+                available=available,
+            )
+            return available
 
     async def find_pending_by_provider_identity(
         self, provider: AuthProvider, provider_user_id: str
@@ -189,6 +283,25 @@ class InviteService(Service):
         Returns:
             Pending invite if found, None otherwise
         """
-        return await self.invite_repository.find_pending_by_provider_identity(
-            provider, provider_user_id
-        )
+        with logfire.span(
+            "invite_service.find_pending_by_provider_identity",
+            provider=provider.value,
+            provider_user_id=provider_user_id,
+        ):
+            invite = await self.invite_repository.find_pending_by_provider_identity(
+                provider, provider_user_id
+            )
+            if invite:
+                logfire.info(
+                    "Pending invite found",
+                    provider=provider.value,
+                    provider_user_id=provider_user_id,
+                    invite_id=str(invite.id),
+                )
+            else:
+                logfire.warn(
+                    "Pending invite not found",
+                    provider=provider.value,
+                    provider_user_id=provider_user_id,
+                )
+            return invite

@@ -1,5 +1,7 @@
 """Authentication domain service."""
 
+import logfire
+
 from talk.domain.value.types import AuthProvider, OAuthProviderInfo
 
 from .base import Service
@@ -63,11 +65,15 @@ class AuthService(Service):
         Raises:
             ValueError: If provider not supported
         """
-        client = self.oauth_clients.get(provider)
-        if not client:
-            raise ValueError(f"Unsupported provider: {provider}")
+        with logfire.span("auth_service.initiate_login", provider=provider.value):
+            client = self.oauth_clients.get(provider)
+            if not client:
+                logfire.error("Unsupported provider", provider=provider.value)
+                raise ValueError(f"Unsupported provider: {provider}")
 
-        return await client.initiate_authorization(state)
+            auth_url = await client.initiate_authorization(state)
+            logfire.info("Login initiated", provider=provider.value)
+            return auth_url
 
     async def complete_login(
         self, provider: AuthProvider, code: str, state: str, iss: str | None = None
@@ -86,8 +92,18 @@ class AuthService(Service):
         Raises:
             ValueError: If provider not supported
         """
-        client = self.oauth_clients.get(provider)
-        if not client:
-            raise ValueError(f"Unsupported provider: {provider}")
+        with logfire.span(
+            "auth_service.complete_login", provider=provider.value, iss=iss
+        ):
+            client = self.oauth_clients.get(provider)
+            if not client:
+                logfire.error("Unsupported provider", provider=provider.value)
+                raise ValueError(f"Unsupported provider: {provider}")
 
-        return await client.complete_authorization(code, state, iss)
+            provider_info = await client.complete_authorization(code, state, iss)
+            logfire.info(
+                "Login completed",
+                provider=provider.value,
+                handle=provider_info.handle,
+            )
+            return provider_info

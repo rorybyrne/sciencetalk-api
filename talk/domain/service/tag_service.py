@@ -73,4 +73,10 @@ class TagService(Service):
         Returns:
             Tag if found, None otherwise
         """
-        return await self.tag_repository.find_by_name(name)
+        with logfire.span("tag_service.get_tag_by_name", tag_name=name.root):
+            tag = await self.tag_repository.find_by_name(name)
+            if tag:
+                logfire.info("Tag found", tag_name=name.root)
+            else:
+                logfire.warn("Tag not found", tag_name=name.root)
+            return tag

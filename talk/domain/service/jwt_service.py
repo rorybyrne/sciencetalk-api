@@ -1,5 +1,7 @@
 """JWT token domain service."""
 
+import logfire
+
 from talk.config import AuthSettings
 from talk.util.jwt import create_token, verify_token, TokenPayload
 
@@ -28,7 +30,10 @@ class JWTService(Service):
         Returns:
             JWT token string
         """
-        return create_token(user_id, did, handle, self.auth_settings)
+        with logfire.span("jwt_service.create_token", user_id=user_id, handle=handle):
+            token = create_token(user_id, did, handle, self.auth_settings)
+            logfire.info("JWT token created", user_id=user_id, handle=handle)
+            return token
 
     def verify_token(self, token: str) -> TokenPayload:
         """Verify JWT token and extract payload.
@@ -42,4 +47,13 @@ class JWTService(Service):
         Raises:
             JWTError: If token is invalid or expired
         """
-        return verify_token(token, self.auth_settings)
+        with logfire.span("jwt_service.verify_token"):
+            try:
+                payload = verify_token(token, self.auth_settings)
+                logfire.info(
+                    "JWT token verified", user_id=payload.user_id, handle=payload.handle
+                )
+                return payload
+            except Exception as e:
+                logfire.error("JWT token verification failed", error=str(e))
+                raise

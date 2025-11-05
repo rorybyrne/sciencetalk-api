@@ -1,5 +1,6 @@
 """Comment domain service."""
 
+import logfire
 from datetime import datetime
 from uuid import uuid4
 
@@ -45,33 +46,59 @@ class CommentService(Service):
         Raises:
             ValueError: If parent comment invalid
         """
-        # If replying, verify parent exists and calculate depth
-        depth = 0
-        if parent_id:
-            parent = await self.comment_repository.find_by_id(parent_id)
-            if not parent:
-                raise ValueError("Parent comment not found")
-            if parent.post_id != post_id:
-                raise ValueError("Parent comment does not belong to this post")
-            depth = parent.depth + 1
+        with logfire.span(
+            "comment_service.create_comment",
+            post_id=str(post_id),
+            author_id=str(author_id),
+            author_handle=author_handle.root,
+            parent_id=str(parent_id) if parent_id else None,
+        ):
+            # If replying, verify parent exists and calculate depth
+            depth = 0
+            if parent_id:
+                parent = await self.comment_repository.find_by_id(parent_id)
+                if not parent:
+                    logfire.error(
+                        "Parent comment not found",
+                        parent_id=str(parent_id),
+                        post_id=str(post_id),
+                    )
+                    raise ValueError("Parent comment not found")
+                if parent.post_id != post_id:
+                    logfire.error(
+                        "Parent comment does not belong to post",
+                        parent_id=str(parent_id),
+                        parent_post_id=str(parent.post_id),
+                        target_post_id=str(post_id),
+                    )
+                    raise ValueError("Parent comment does not belong to this post")
+                depth = parent.depth + 1
 
-        # Create comment
-        comment = Comment(
-            id=CommentId(uuid4()),
-            post_id=post_id,
-            author_id=author_id,
-            author_handle=author_handle,
-            text=text,
-            parent_id=parent_id,
-            depth=depth,
-            path=None,  # Set by database trigger
-            points=1,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            deleted_at=None,
-        )
+            # Create comment
+            comment = Comment(
+                id=CommentId(uuid4()),
+                post_id=post_id,
+                author_id=author_id,
+                author_handle=author_handle,
+                text=text,
+                parent_id=parent_id,
+                depth=depth,
+                path=None,  # Set by database trigger
+                points=1,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                deleted_at=None,
+            )
 
-        return await self.comment_repository.save(comment)
+            saved = await self.comment_repository.save(comment)
+            logfire.info(
+                "Comment created",
+                comment_id=str(saved.id),
+                post_id=str(post_id),
+                author_handle=author_handle.root,
+                depth=depth,
+            )
+            return saved
 
     async def get_comments_for_post(
         self, post_id: PostId, include_deleted: bool = False
@@ -85,10 +112,21 @@ class CommentService(Service):
         Returns:
             List of comments in tree order
         """
-        return await self.comment_repository.find_by_post(
-            post_id=post_id,
+        with logfire.span(
+            "comment_service.get_comments_for_post",
+            post_id=str(post_id),
             include_deleted=include_deleted,
-        )
+        ):
+            comments = await self.comment_repository.find_by_post(
+                post_id=post_id,
+                include_deleted=include_deleted,
+            )
+            logfire.info(
+                "Comments retrieved for post",
+                post_id=str(post_id),
+                count=len(comments),
+            )
+            return comments
 
     async def get_comment_by_id(self, comment_id: CommentId) -> Comment | None:
         """Get a comment by ID.
@@ -99,7 +137,15 @@ class CommentService(Service):
         Returns:
             Comment if found, None otherwise
         """
-        return await self.comment_repository.find_by_id(comment_id)
+        with logfire.span(
+            "comment_service.get_comment_by_id", comment_id=str(comment_id)
+        ):
+            comment = await self.comment_repository.find_by_id(comment_id)
+            if comment:
+                logfire.info("Comment found", comment_id=str(comment_id))
+            else:
+                logfire.warn("Comment not found", comment_id=str(comment_id))
+            return comment
 
     async def increment_points(self, comment_id: CommentId) -> None:
         """Atomically increment comment points.
@@ -109,7 +155,11 @@ class CommentService(Service):
         Args:
             comment_id: Comment ID
         """
-        await self.comment_repository.increment_points(comment_id)
+        with logfire.span(
+            "comment_service.increment_points", comment_id=str(comment_id)
+        ):
+            await self.comment_repository.increment_points(comment_id)
+            logfire.info("Comment points incremented", comment_id=str(comment_id))
 
     async def decrement_points(self, comment_id: CommentId) -> None:
         """Atomically decrement comment points (minimum 1).
@@ -119,4 +169,8 @@ class CommentService(Service):
         Args:
             comment_id: Comment ID
         """
-        await self.comment_repository.decrement_points(comment_id)
+        with logfire.span(
+            "comment_service.decrement_points", comment_id=str(comment_id)
+        ):
+            await self.comment_repository.decrement_points(comment_id)
+            logfire.info("Comment points decremented", comment_id=str(comment_id))

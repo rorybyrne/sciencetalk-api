@@ -151,26 +151,40 @@ class VoteService(Service):
         Returns:
             True if vote was removed, False if no vote existed
         """
-        # Get post to find author before deleting vote
-        post = await self.post_service.get_post_by_id(post_id)
-        if not post:
-            return False
+        with logfire.span(
+            "remove_vote_from_post", post_id=str(post_id), user_id=str(user_id)
+        ):
+            # Get post to find author before deleting vote
+            post = await self.post_service.get_post_by_id(post_id)
+            if not post:
+                logfire.warn("Vote removal on non-existent post", post_id=str(post_id))
+                return False
 
-        # Delete vote
-        deleted = await self.vote_repository.delete_by_user_and_votable(
-            user_id=user_id,
-            votable_type=VotableType.POST,
-            votable_id=post_id,
-        )
+            # Delete vote
+            deleted = await self.vote_repository.delete_by_user_and_votable(
+                user_id=user_id,
+                votable_type=VotableType.POST,
+                votable_id=post_id,
+            )
 
-        if deleted:
-            # Atomically decrement post points
-            await self.post_service.decrement_points(post_id)
+            if deleted:
+                # Atomically decrement post points
+                await self.post_service.decrement_points(post_id)
 
-            # Decrement post author's karma
-            await self.user_service.decrement_karma(post.author_id)
+                # Decrement post author's karma
+                await self.user_service.decrement_karma(post.author_id)
 
-        return deleted
+                logfire.info(
+                    "Vote removed from post", post_id=str(post_id), user_id=str(user_id)
+                )
+            else:
+                logfire.info(
+                    "No vote to remove from post",
+                    post_id=str(post_id),
+                    user_id=str(user_id),
+                )
+
+            return deleted
 
     async def remove_vote_from_comment(
         self, comment_id: CommentId, user_id: UserId
@@ -186,23 +200,41 @@ class VoteService(Service):
         Returns:
             True if vote was removed, False if no vote existed
         """
-        # Get comment to find author before deleting vote
-        comment = await self.comment_service.get_comment_by_id(comment_id)
-        if not comment:
-            return False
+        with logfire.span(
+            "remove_vote_from_comment", comment_id=str(comment_id), user_id=str(user_id)
+        ):
+            # Get comment to find author before deleting vote
+            comment = await self.comment_service.get_comment_by_id(comment_id)
+            if not comment:
+                logfire.warn(
+                    "Vote removal on non-existent comment", comment_id=str(comment_id)
+                )
+                return False
 
-        # Delete vote
-        deleted = await self.vote_repository.delete_by_user_and_votable(
-            user_id=user_id,
-            votable_type=VotableType.COMMENT,
-            votable_id=comment_id,
-        )
+            # Delete vote
+            deleted = await self.vote_repository.delete_by_user_and_votable(
+                user_id=user_id,
+                votable_type=VotableType.COMMENT,
+                votable_id=comment_id,
+            )
 
-        if deleted:
-            # Atomically decrement comment points
-            await self.comment_service.decrement_points(comment_id)
+            if deleted:
+                # Atomically decrement comment points
+                await self.comment_service.decrement_points(comment_id)
 
-            # Decrement comment author's karma
-            await self.user_service.decrement_karma(comment.author_id)
+                # Decrement comment author's karma
+                await self.user_service.decrement_karma(comment.author_id)
 
-        return deleted
+                logfire.info(
+                    "Vote removed from comment",
+                    comment_id=str(comment_id),
+                    user_id=str(user_id),
+                )
+            else:
+                logfire.info(
+                    "No vote to remove from comment",
+                    comment_id=str(comment_id),
+                    user_id=str(user_id),
+                )
+
+            return deleted
