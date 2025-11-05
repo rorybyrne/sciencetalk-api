@@ -22,6 +22,12 @@ output "database_url" {
   sensitive   = true
 }
 
+output "database_password" {
+  description = "Database password (for psql connection)"
+  value       = random_password.db_password.result
+  sensitive   = true
+}
+
 output "lightsail_nameservers" {
   description = "Nameservers to configure at your domain registrar"
   value       = "Check Lightsail Console → Networking → DNS zones → ${var.domain_name}"

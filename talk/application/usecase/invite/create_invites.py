@@ -202,7 +202,7 @@ class CreateInvitesUseCase(BaseUseCase):
             invite_items = [
                 InviteItem(
                     invite_id=str(invite.id),
-                    invite_url=f"{frontend_url}/invite/{invite.invite_token.root}",
+                    invite_url=f"{frontend_url}/invites/{invite.invite_token.root}",
                     invite_token=invite.invite_token.root,
                     provider=invite.provider,
                     invitee_handle=invite.invitee_handle,

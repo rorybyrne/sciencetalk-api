@@ -7,6 +7,7 @@ import pytest
 
 from talk.application.usecase.invite import GetInvitesUseCase
 from talk.application.usecase.invite.get_invites import GetInvitesRequest
+from talk.config import Settings
 from talk.domain.model.invite import Invite
 from talk.domain.model.user import User
 from talk.domain.repository import UserRepository
@@ -65,7 +66,8 @@ class TestGetInvitesUseCase:
         invite_service = await unit_env.get(InviteService)
 
         user = await self._create_test_user(user_repo, "inviter.bsky.social")
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
 
         request = GetInvitesRequest(inviter_id=str(user.id))
 
@@ -98,7 +100,8 @@ class TestGetInvitesUseCase:
             invite_service, user.id, "friend3.bsky.social", "did:plc:friend3"
         )
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
@@ -142,7 +145,8 @@ class TestGetInvitesUseCase:
         new_user = await self._create_test_user(user_repo, "accepted.bsky.social")
         await invite_service.accept_invite(accepted_invite.id, new_user.id)
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(
             inviter_id=str(user.id),
             status=InviteStatus.PENDING,
@@ -189,7 +193,8 @@ class TestGetInvitesUseCase:
             new_user = await self._create_test_user(user_repo, handle)
             await invite_service.accept_invite(invite.id, new_user.id)
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(
             inviter_id=str(user.id),
             status=InviteStatus.ACCEPTED,
@@ -224,7 +229,8 @@ class TestGetInvitesUseCase:
                 invite_service, user.id, f"friend{i}.bsky.social", f"did:plc:friend{i}"
             )
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(inviter_id=str(user.id), limit=5)
 
         # Act
@@ -253,7 +259,8 @@ class TestGetInvitesUseCase:
                 f"did:plc:friend{i:02d}",
             )
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
 
         # Get first page
         request_page1 = GetInvitesRequest(inviter_id=str(user.id), limit=5, offset=0)
@@ -289,7 +296,8 @@ class TestGetInvitesUseCase:
         new_user = await self._create_test_user(user_repo, "friend.bsky.social")
         await invite_service.accept_invite(invite.id, new_user.id)
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
@@ -319,7 +327,8 @@ class TestGetInvitesUseCase:
             invite_service, user.id, "pending.bsky.social", "did:plc:pending"
         )
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(inviter_id=str(user.id))
 
         # Act
@@ -370,7 +379,8 @@ class TestGetInvitesUseCase:
             invite_service, user2.id, "user2friend1.bsky.social", "did:plc:user2friend1"
         )
 
-        use_case = GetInvitesUseCase(invite_service, user_service)
+        settings = await unit_env.get(Settings)
+        use_case = GetInvitesUseCase(invite_service, user_service, settings)
         request = GetInvitesRequest(inviter_id=str(user1.id))
 
         # Act

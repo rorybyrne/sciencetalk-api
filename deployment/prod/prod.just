@@ -365,18 +365,26 @@ info:
     @echo "════════════════════════════════════════════════════════════════"
 
 # Connect to database (requires psql)
+[working-directory: 'tf']
 db-connect:
     #!/usr/bin/env bash
     set -euo pipefail
+
+    # Get database endpoint from AWS
     DB_ENDPOINT=$(aws lightsail get-relational-database \
         --relational-database-name {{SERVICE_NAME}}-db \
         --region {{AWS_REGION}} \
         --profile {{AWS_PROFILE}} \
         --query 'relationalDatabase.masterEndpoint.[address,port]' \
         --output text | tr '\t' ':')
-    echo "Connecting to database at $DB_ENDPOINT..."
-    echo "Note: You'll need the database password from terraform.tfvars"
-    psql "postgresql://dbadmin@$DB_ENDPOINT/talk"
+
+    # Get database password from Terraform
+    DB_PASSWORD=$(terraform output -raw database_password)
+
+    echo "🔌 Connecting to database at $DB_ENDPOINT..."
+
+    # Connect with password from Terraform
+    PGPASSWORD="$DB_PASSWORD" psql "postgresql://dbadmin@$DB_ENDPOINT/talk"
 
 # Show current costs (requires AWS Cost Explorer to be enabled)
 costs:
