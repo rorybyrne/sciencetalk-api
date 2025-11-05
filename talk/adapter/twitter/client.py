@@ -144,7 +144,9 @@ class RealTwitterOAuthClient(TwitterOAuthClient):
         user_info = await self._get_user_info(access_token)
 
         # Use username without @ prefix for uniformity
+        # Lowercase for provider_user_id to ensure case-insensitive matching
         username = user_info["username"]
+        normalized_username = username.lower()
 
         logfire.info(
             "Twitter OAuth completed",
@@ -154,8 +156,8 @@ class RealTwitterOAuthClient(TwitterOAuthClient):
 
         return OAuthProviderInfo(
             provider=AuthProvider.TWITTER,
-            provider_user_id=username,  # Use username as provider ID (no @)
-            handle=username,
+            provider_user_id=normalized_username,  # Lowercase for case-insensitive matching
+            handle=username,  # Keep original case for display
             email=user_info.get("email"),  # May be None if not approved by Twitter
             display_name=user_info.get("name"),
             avatar_url=user_info.get("profile_image_url"),
