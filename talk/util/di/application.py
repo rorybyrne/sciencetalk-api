@@ -20,7 +20,10 @@ from talk.application.usecase.post import (
     ListPostsUseCase,
 )
 from talk.application.usecase.tag import ListTagsUseCase
-from talk.application.usecase.user import GetUserProfileUseCase
+from talk.application.usecase.user import (
+    GetUserProfileUseCase,
+    UpdateUserProfileUseCase,
+)
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
 from talk.domain.repository import PostRepository, UserRepository, VoteRepository
 from talk.domain.service import (
@@ -160,10 +163,12 @@ class ProdApplicationProvider(ProviderBase):
 
     @provide(scope=Scope.REQUEST)
     def get_validate_invite_use_case(
-        self, invite_service: InviteService
+        self, invite_service: InviteService, user_service: UserService
     ) -> ValidateInviteUseCase:
         """Provide validate invite use case."""
-        return ValidateInviteUseCase(invite_service=invite_service)
+        return ValidateInviteUseCase(
+            invite_service=invite_service, user_service=user_service
+        )
 
     # User use cases
     @provide(scope=Scope.REQUEST)
@@ -172,6 +177,13 @@ class ProdApplicationProvider(ProviderBase):
     ) -> GetUserProfileUseCase:
         """Provide get user profile use case."""
         return GetUserProfileUseCase(user_service=user_service)
+
+    @provide(scope=Scope.REQUEST)
+    def get_update_user_profile_use_case(
+        self, user_service: UserService
+    ) -> UpdateUserProfileUseCase:
+        """Provide update user profile use case."""
+        return UpdateUserProfileUseCase(user_service=user_service)
 
     # Tag use cases
     @provide(scope=Scope.REQUEST)

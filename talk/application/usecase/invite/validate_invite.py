@@ -3,7 +3,7 @@
 import logfire
 from pydantic import BaseModel
 
-from talk.domain.service import InviteService
+from talk.domain.service import InviteService, UserService
 from talk.domain.value import AuthProvider, InviteStatus, InviteToken
 
 
@@ -32,13 +32,17 @@ class ValidateInviteUseCase:
     before redirecting to OAuth.
     """
 
-    def __init__(self, invite_service: InviteService) -> None:
+    def __init__(
+        self, invite_service: InviteService, user_service: UserService
+    ) -> None:
         """Initialize validate invite use case.
 
         Args:
             invite_service: Invite domain service
+            user_service: User domain service
         """
         self.invite_service = invite_service
+        self.user_service = user_service
 
     async def execute(self, request: ValidateInviteRequest) -> ValidateInviteResponse:
         """Validate an invite token.
@@ -75,12 +79,17 @@ class ValidateInviteUseCase:
                     message="Invite has already been accepted",
                 )
 
+            # Get inviter user to populate inviter_handle
+            inviter = await self.user_service.get_user_by_id(invite.inviter_id)
+            inviter_handle = inviter.handle.root if inviter else None
+
             # Valid pending invite
             logfire.info(
                 "Valid invite found",
                 token=request.token[:8] + "...",
                 provider=invite.provider.value,
                 invitee_handle=invite.invitee_handle,
+                inviter_handle=inviter_handle,
             )
 
             return ValidateInviteResponse(
@@ -89,5 +98,6 @@ class ValidateInviteUseCase:
                 provider=invite.provider,
                 invitee_handle=invite.invitee_handle,
                 invitee_name=invite.invitee_name,
+                inviter_handle=inviter_handle,
                 message="Valid invite",
             )
