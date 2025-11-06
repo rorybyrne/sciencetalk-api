@@ -1,6 +1,5 @@
 """PostgreSQL implementation of Comment repository."""
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy import desc, func, select, update
@@ -149,7 +148,7 @@ class PostgresCommentRepository(CommentRepository):
             .where(comments_table.c.id == comment_id)
             .values(
                 points=comments_table.c.points + 1,
-                updated_at=datetime.now(),
+                # updated_at is set by database trigger
             )
         )
         await self.session.execute(stmt)
@@ -163,7 +162,7 @@ class PostgresCommentRepository(CommentRepository):
             .where(comments_table.c.points > 1)  # Don't go below 1
             .values(
                 points=comments_table.c.points - 1,
-                updated_at=datetime.now(),
+                # updated_at is set by database trigger
             )
         )
         await self.session.execute(stmt)
@@ -177,7 +176,7 @@ class PostgresCommentRepository(CommentRepository):
             .where(comments_table.c.deleted_at.is_(None))
             .values(
                 text=text,
-                updated_at=datetime.now(),
+                # updated_at is set by database trigger
             )
             .returning(comments_table)
         )
