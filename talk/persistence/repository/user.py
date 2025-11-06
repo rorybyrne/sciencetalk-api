@@ -156,3 +156,30 @@ class PostgresUserRepository(UserRepository):
         )
         await self.session.execute(stmt)
         await self.session.flush()
+
+    async def find_all_for_tree(
+        self, include_karma: bool = True
+    ) -> list[tuple[UserId, Handle, int | None]]:
+        """Find all users with minimal data for tree building.
+
+        Optimized query that fetches only id, handle, and optionally karma.
+        This reduces data transfer and improves performance for tree building.
+
+        Args:
+            include_karma: Whether to include karma (default: True)
+
+        Returns:
+            List of (user_id, handle, karma) tuples
+        """
+        if include_karma:
+            stmt = select(users_table.c.id, users_table.c.handle, users_table.c.karma)
+        else:
+            stmt = select(users_table.c.id, users_table.c.handle)
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        if include_karma:
+            return [(UserId(row.id), Handle(row.handle), row.karma) for row in rows]
+        else:
+            return [(UserId(row.id), Handle(row.handle), None) for row in rows]

@@ -22,6 +22,7 @@ from talk.application.usecase.post import (
 from talk.application.usecase.tag import ListTagsUseCase
 from talk.application.usecase.user import (
     GetUserProfileUseCase,
+    GetUserTreeUseCase,
     UpdateUserProfileUseCase,
 )
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
@@ -195,6 +196,13 @@ class ProdApplicationProvider(ProviderBase):
     ) -> UpdateUserProfileUseCase:
         """Provide update user profile use case."""
         return UpdateUserProfileUseCase(user_service=user_service)
+
+    @provide(scope=Scope.REQUEST)
+    def get_get_user_tree_use_case(
+        self, user_service: UserService
+    ) -> GetUserTreeUseCase:
+        """Provide get user tree use case."""
+        return GetUserTreeUseCase(user_service=user_service)
 
     # Tag use cases
     @provide(scope=Scope.REQUEST)

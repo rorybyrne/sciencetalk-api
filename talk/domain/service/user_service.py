@@ -1,23 +1,45 @@
 """User domain service."""
 
+from collections import defaultdict
+from dataclasses import dataclass
+
 import logfire
 
 from talk.domain.model import User
-from talk.domain.repository import UserRepository
+from talk.domain.repository import InviteRepository, UserRepository
 from talk.domain.value import AuthProvider, UserId
 from talk.domain.value.types import Handle
+
+
+@dataclass
+class UserTreeNode:
+    """Node in the user invitation tree.
+
+    Represents a user and their invited children in the invitation hierarchy.
+    """
+
+    user_id: UserId
+    handle: Handle
+    karma: int | None
+    children: list["UserTreeNode"]
 
 
 class UserService:
     """Domain service for user operations."""
 
-    def __init__(self, user_repository: UserRepository) -> None:
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        invite_repository: InviteRepository,
+    ) -> None:
         """Initialize user service.
 
         Args:
             user_repository: User repository
+            invite_repository: Invite repository
         """
         self.user_repository = user_repository
+        self.invite_repository = invite_repository
 
     async def get_user_by_id(self, user_id: UserId) -> User | None:
         """Get user by ID.
@@ -148,3 +170,98 @@ class UserService:
             saved = await self.user_repository.save(user)
             logfire.info("User saved", user_id=str(saved.id), handle=saved.handle.root)
             return saved
+
+    async def build_invitation_tree(
+        self, include_karma: bool = True
+    ) -> list[UserTreeNode]:
+        """Build the user invitation tree.
+
+        Creates a hierarchical tree structure showing who invited whom.
+        Users without a parent (root users) appear at the top level.
+
+        Algorithm:
+        1. Fetch all users (minimal data: id, handle, karma)
+        2. Fetch all accepted invite relationships (parent->child pairs)
+        3. Build adjacency map of parent_id -> [child_ids]
+        4. Identify root users (users with no parent)
+        5. Recursively build tree from each root, sorting children by karma
+
+        Args:
+            include_karma: Whether to fetch and include karma (default: True).
+                          Can be disabled for better performance if karma not needed.
+
+        Returns:
+            List of root UserTreeNode objects with children populated recursively.
+            Children at each level are sorted by karma (descending).
+        """
+        with logfire.span("user_service.build_invitation_tree"):
+            # Fetch all users (optimized query with minimal fields)
+            users_data = await self.user_repository.find_all_for_tree(
+                include_karma=include_karma
+            )
+            logfire.info("Fetched users for tree", count=len(users_data))
+
+            # Fetch all accepted invite relationships
+            relationships = (
+                await self.invite_repository.find_all_accepted_relationships()
+            )
+            logfire.info("Fetched invite relationships", count=len(relationships))
+
+            # Build user lookup map: user_id -> (handle, karma)
+            user_map: dict[UserId, tuple[Handle, int | None]] = {
+                user_id: (handle, karma) for user_id, handle, karma in users_data
+            }
+
+            # Build adjacency map: parent_id -> [child_ids]
+            adjacency: dict[UserId, list[UserId]] = defaultdict(list)
+            for parent_id, child_id in relationships:
+                adjacency[parent_id].append(child_id)
+
+            # Identify root users (users with no parent in relationships)
+            all_children = {child_id for _, child_id in relationships}
+            roots = [
+                user_id for user_id, _, _ in users_data if user_id not in all_children
+            ]
+
+            logfire.info("Identified root users", count=len(roots))
+
+            # Recursively build tree from each root
+            def build_subtree(user_id: UserId) -> UserTreeNode:
+                """Build tree recursively from a user node."""
+                handle, karma = user_map[user_id]
+
+                # Get children and recursively build their subtrees
+                child_ids = adjacency.get(user_id, [])
+                children = [build_subtree(child_id) for child_id in child_ids]
+
+                # Sort children by karma (descending), handle as tiebreaker
+                # Users without karma (None) sort to the end
+                children.sort(
+                    key=lambda node: (
+                        node.karma if node.karma is not None else -1,
+                        node.handle.root,
+                    ),
+                    reverse=True,
+                )
+
+                return UserTreeNode(
+                    user_id=user_id,
+                    handle=handle,
+                    karma=karma,
+                    children=children,
+                )
+
+            # Build tree from all roots
+            tree_roots = [build_subtree(root_id) for root_id in roots]
+
+            # Sort roots by karma as well
+            tree_roots.sort(
+                key=lambda node: (
+                    node.karma if node.karma is not None else -1,
+                    node.handle.root,
+                ),
+                reverse=True,
+            )
+
+            logfire.info("Built invitation tree", root_count=len(tree_roots))
+            return tree_roots

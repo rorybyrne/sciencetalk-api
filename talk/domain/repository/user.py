@@ -95,3 +95,23 @@ class UserRepository(ABC):
             user_id: The user's unique identifier
         """
         pass
+
+    @abstractmethod
+    async def find_all_for_tree(
+        self, include_karma: bool = True
+    ) -> list[tuple[UserId, Handle, int | None]]:
+        """Find all users with minimal data for tree building.
+
+        Optimized query that fetches only the fields needed for building
+        the user invitation tree. Karma fetch is optional and can be disabled
+        for performance if needed.
+
+        Args:
+            include_karma: Whether to include karma in results (default: True).
+                          Set to False to skip karma fetch for better performance.
+
+        Returns:
+            List of (user_id, handle, karma) tuples.
+            If include_karma=False, karma will be None for all users.
+        """
+        pass

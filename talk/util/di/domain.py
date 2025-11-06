@@ -90,9 +90,13 @@ class ProdDomainProvider(ProviderBase):
         return InviteService(invite_repository=invite_repository)
 
     @provide
-    def get_user_service(self, user_repository: UserRepository) -> UserService:
+    def get_user_service(
+        self, user_repository: UserRepository, invite_repository: InviteRepository
+    ) -> UserService:
         """Provide user domain service."""
-        return UserService(user_repository=user_repository)
+        return UserService(
+            user_repository=user_repository, invite_repository=invite_repository
+        )
 
     @provide
     def get_user_identity_service(

@@ -66,3 +66,12 @@ class InMemoryUserRepository(UserRepository):
         if user:
             updated_user = user.model_copy(update={"karma": max(0, user.karma - 1)})
             self._users[user_id] = updated_user
+
+    async def find_all_for_tree(
+        self, include_karma: bool = True
+    ) -> list[tuple[UserId, Handle, int | None]]:
+        """Find all users with minimal data for tree building."""
+        return [
+            (user.id, user.handle, user.karma if include_karma else None)
+            for user in self._users.values()
+        ]

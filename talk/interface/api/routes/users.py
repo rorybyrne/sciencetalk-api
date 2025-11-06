@@ -1,17 +1,19 @@
 """User profile routes."""
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, Cookie, HTTPException, status
+from fastapi import APIRouter, Cookie, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from talk.application.usecase.user import (
     GetUserProfileUseCase,
+    GetUserTreeUseCase,
     UpdateUserProfileUseCase,
 )
 from talk.application.usecase.user.get_user_profile import (
     GetUserProfileRequest,
     GetUserProfileResponse,
 )
+from talk.application.usecase.user.get_user_tree import GetUserTreeResponse
 from talk.application.usecase.user.update_user_profile import (
     UpdateUserProfileRequest,
     UpdateUserProfileResponse,
@@ -29,6 +31,52 @@ class UpdateUserProfileAPIRequest(BaseModel):
     bio: str | None = Field(None, max_length=500)
     avatar_url: str | None = None
     email: str | None = None
+
+
+@router.get("/", response_model=GetUserTreeResponse)
+async def get_user_tree(
+    get_user_tree_use_case: FromDishka[GetUserTreeUseCase],
+    include_karma: bool = Query(default=True, description="Include karma in response"),
+) -> GetUserTreeResponse:
+    """Get hierarchical user invitation tree.
+
+    Returns a tree structure showing who invited whom, with root users
+    (users with no inviter) at the top level. Children at each level are
+    sorted by karma (descending).
+
+    This endpoint is public and requires no authentication.
+
+    Args:
+        get_user_tree_use_case: Get user tree use case from DI
+        include_karma: Whether to include karma (default: True)
+
+    Returns:
+        Hierarchical tree of all users showing invitation relationships
+
+    Example:
+        GET /users
+
+        Response:
+        {
+            "roots": [
+                {
+                    "user_id": "uuid1",
+                    "handle": "rory.bio",
+                    "karma": 150,
+                    "children": [
+                        {
+                            "user_id": "uuid2",
+                            "handle": "alice.bsky.social",
+                            "karma": 42,
+                            "children": []
+                        }
+                    ]
+                }
+            ],
+            "total_users": 127
+        }
+    """
+    return await get_user_tree_use_case.execute(include_karma=include_karma)
 
 
 @router.get("/{handle}", response_model=GetUserProfileResponse)

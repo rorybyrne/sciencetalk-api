@@ -8,7 +8,7 @@ from .jwt_service import JWTService
 from .post_service import PostService
 from .tag_service import TagService
 from .user_identity_service import UserIdentityService
-from .user_service import UserService
+from .user_service import UserService, UserTreeNode
 from .vote_service import VoteService
 
 __all__ = [
@@ -22,5 +22,6 @@ __all__ = [
     "TagService",
     "UserIdentityService",
     "UserService",
+    "UserTreeNode",
     "VoteService",
 ]

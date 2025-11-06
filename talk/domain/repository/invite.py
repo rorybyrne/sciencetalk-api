@@ -125,3 +125,16 @@ class InviteRepository(ABC):
             List of invites
         """
         pass
+
+    @abstractmethod
+    async def find_all_accepted_relationships(self) -> list[tuple[UserId, UserId]]:
+        """Find all accepted invite relationships for tree building.
+
+        Returns parent-child pairs for building the user invitation tree.
+        Optimized query that returns only the IDs needed for tree construction.
+
+        Returns:
+            List of (inviter_id, accepted_by_user_id) tuples representing
+            parent->child relationships in the invitation tree
+        """
+        pass

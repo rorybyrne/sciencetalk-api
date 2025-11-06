@@ -186,3 +186,29 @@ class PostgresInviteRepository(InviteRepository):
         result = await self.session.execute(stmt)
         rows = result.mappings().all()
         return [row_to_invite(dict(row)) for row in rows]
+
+    async def find_all_accepted_relationships(self) -> list[tuple[UserId, UserId]]:
+        """Find all accepted invite relationships for tree building.
+
+        Optimized query using composite index idx_invites_tree_relationships
+        to efficiently fetch only the parent-child ID pairs needed for
+        building the user invitation tree.
+
+        Returns:
+            List of (inviter_id, accepted_by_user_id) tuples
+        """
+        stmt = select(
+            invites_table.c.inviter_id, invites_table.c.accepted_by_user_id
+        ).where(
+            and_(
+                invites_table.c.status == InviteStatus.ACCEPTED.value,
+                invites_table.c.accepted_by_user_id.is_not(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        return [
+            (UserId(row.inviter_id), UserId(row.accepted_by_user_id)) for row in rows
+        ]

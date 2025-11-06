@@ -109,3 +109,11 @@ class InMemoryInviteRepository(InviteRepository):
 
         # Apply pagination
         return matches[offset : offset + limit]
+
+    async def find_all_accepted_relationships(self) -> list[tuple[UserId, UserId]]:
+        """Find all accepted invite relationships for tree building."""
+        relationships = []
+        for invite in self._invites:
+            if invite.status == InviteStatus.ACCEPTED and invite.accepted_by_user_id:
+                relationships.append((invite.inviter_id, invite.accepted_by_user_id))
+        return relationships
