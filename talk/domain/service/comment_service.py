@@ -75,6 +75,7 @@ class CommentService(Service):
                 depth = parent.depth + 1
 
             # Create comment
+            now = datetime.now()
             comment = Comment(
                 id=CommentId(uuid4()),
                 post_id=post_id,
@@ -85,8 +86,8 @@ class CommentService(Service):
                 depth=depth,
                 path=None,  # Set by database trigger
                 points=1,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=now,
+                updated_at=now,
                 deleted_at=None,
             )
 

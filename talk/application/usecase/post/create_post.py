@@ -80,6 +80,7 @@ class CreatePostUseCase:
                 raise DomainError(str(e))
 
             # Create post entity (Pydantic validation will enforce content rules)
+            now = datetime.now()
             post = Post(
                 id=PostId(uuid4()),
                 title=request.title,
@@ -90,8 +91,8 @@ class CreatePostUseCase:
                 tag_names=tag_name_objs,
                 points=1,  # New posts start with 1 point
                 comment_count=0,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=now,
+                updated_at=now,
                 deleted_at=None,
             )
 
