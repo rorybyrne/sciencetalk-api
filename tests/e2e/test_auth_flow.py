@@ -108,14 +108,15 @@ class TestAuthFlow:
         assert "auth_token" in set_cookie_header
 
     def test_get_current_user_without_cookie(self, client):
-        """Should return 401 when not authenticated."""
+        """Should return authenticated=false when not authenticated."""
         # Act
         response = client.get("/auth/me")
 
         # Assert
-        assert response.status_code == 401
+        assert response.status_code == 200
         data = response.json()
-        assert data["detail"] == "Not authenticated"
+        assert data["authenticated"] is False
+        assert data["user"] is None
 
 
 class TestProtectedEndpoints:

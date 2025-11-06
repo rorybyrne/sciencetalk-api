@@ -50,6 +50,17 @@ class LogoutResponse(BaseModel):
     message: str
 
 
+class AuthStatusResponse(BaseModel):
+    """Response for checking authentication status.
+
+    Used by /auth/me to return current user if authenticated,
+    or indicate unauthenticated state without raising an error.
+    """
+
+    authenticated: bool
+    user: GetCurrentUserResponse | None = None
+
+
 @router.post("/login", response_model=InitiateLoginResponse)
 async def initiate_login(
     request: InitiateLoginRequest,
@@ -343,28 +354,43 @@ async def logout(
     return LogoutResponse(success=True, message="Successfully logged out")
 
 
-@router.get("/me", response_model=GetCurrentUserResponse)
+@router.get("/me", response_model=AuthStatusResponse)
 async def get_current_user(
     get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
     auth_token: str | None = Cookie(default=None),
-) -> GetCurrentUserResponse:
-    """Get currently authenticated user.
+) -> AuthStatusResponse:
+    """Get current user if authenticated, or return unauthenticated status.
+
+    This endpoint is safe to call without authentication - it will return
+    authenticated=false instead of raising an error. This allows the frontend
+    to check authentication state without generating errors in logs.
 
     Args:
         get_current_user_use_case: Get current user use case from DI
-        auth_token: JWT token from cookie
+        auth_token: JWT token from cookie (optional)
 
     Returns:
-        Current user information
+        Authentication status with user information if authenticated
 
-    Raises:
-        HTTPException: If not authenticated or token invalid
+    Examples:
+        Authenticated:
+        {
+            "authenticated": true,
+            "user": {
+                "user_id": "...",
+                "handle": "alice.bsky.social",
+                ...
+            }
+        }
+
+        Unauthenticated:
+        {
+            "authenticated": false,
+            "user": null
+        }
     """
     if not auth_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
+        return AuthStatusResponse(authenticated=False)
 
     try:
         user = await get_current_user_use_case.execute(
@@ -372,15 +398,11 @@ async def get_current_user(
         )
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-            )
+            # JWT valid but user not found in database (orphaned token)
+            return AuthStatusResponse(authenticated=False)
 
-        return user
+        return AuthStatusResponse(authenticated=True, user=user)
 
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        )
+    except JWTError:
+        # Invalid or expired token - this is expected behavior, not an error
+        return AuthStatusResponse(authenticated=False)
