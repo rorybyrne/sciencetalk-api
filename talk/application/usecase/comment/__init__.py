@@ -6,6 +6,11 @@ from .create_comment import (
     CreateCommentUseCase,
 )
 from .get_comments import GetCommentsRequest, GetCommentsResponse, GetCommentsUseCase
+from .update_comment import (
+    UpdateCommentRequest,
+    UpdateCommentResponse,
+    UpdateCommentUseCase,
+)
 
 __all__ = [
     "CreateCommentRequest",
@@ -14,4 +19,7 @@ __all__ = [
     "GetCommentsRequest",
     "GetCommentsResponse",
     "GetCommentsUseCase",
+    "UpdateCommentRequest",
+    "UpdateCommentResponse",
+    "UpdateCommentUseCase",
 ]

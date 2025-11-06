@@ -1,8 +1,9 @@
 """PostgreSQL implementation of Comment repository."""
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import Comment
@@ -143,8 +144,6 @@ class PostgresCommentRepository(CommentRepository):
 
     async def increment_points(self, comment_id: CommentId) -> None:
         """Atomically increment points by 1."""
-        from datetime import datetime
-
         stmt = (
             comments_table.update()
             .where(comments_table.c.id == comment_id)
@@ -158,8 +157,6 @@ class PostgresCommentRepository(CommentRepository):
 
     async def decrement_points(self, comment_id: CommentId) -> None:
         """Atomically decrement points by 1 (minimum 1)."""
-        from datetime import datetime
-
         stmt = (
             comments_table.update()
             .where(comments_table.c.id == comment_id)
@@ -171,3 +168,26 @@ class PostgresCommentRepository(CommentRepository):
         )
         await self.session.execute(stmt)
         await self.session.flush()
+
+    async def update_text(self, comment_id: CommentId, text: str) -> Comment | None:
+        """Update the text content of a comment."""
+        stmt = (
+            update(comments_table)
+            .where(comments_table.c.id == comment_id)
+            .where(comments_table.c.deleted_at.is_(None))
+            .values(
+                text=text,
+                updated_at=datetime.now(),
+            )
+            .returning(comments_table)
+        )
+
+        result = await self.session.execute(stmt)
+        row = result.fetchone()
+
+        if row is None:
+            # Comment not found or deleted
+            return None
+
+        await self.session.flush()
+        return row_to_comment(row._asdict())

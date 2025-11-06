@@ -69,3 +69,91 @@ class TestIncrementCommentCount:
         # Act & Assert
         with pytest.raises(ValueError, match="Post not found"):
             await post_service.increment_comment_count(post_id)
+
+
+class TestUpdateText:
+    """Tests for update_text method."""
+
+    @pytest.mark.asyncio
+    async def test_update_text_updates_post_text(self, unit_env):
+        """Updating text should update post text and timestamp."""
+        # Arrange
+        post_service = await unit_env.get(PostService)
+        post_repo = await unit_env.get(PostRepository)
+
+        post_id = PostId(uuid4())
+        original_time = datetime(2024, 1, 1, 12, 0, 0)
+        original_text = "Original content"
+        new_text = "Updated content"
+
+        post = Post(
+            id=post_id,
+            tag_names=[TagName("discussion")],
+            author_id=UserId(uuid4()),
+            author_handle=Handle(root="author.bsky.social"),
+            title="Test Post",
+            url=None,
+            text=original_text,
+            points=1,
+            comment_count=0,
+            created_at=original_time,
+            updated_at=original_time,
+            deleted_at=None,
+        )
+        await post_repo.save(post)
+
+        # Act
+        result = await post_service.update_text(post_id, new_text)
+
+        # Assert
+        assert result is not None
+        assert result.text == new_text
+        assert result.updated_at > original_time
+
+        # Verify it was saved
+        saved_post = await post_repo.find_by_id(post_id)
+        assert saved_post.text == new_text
+        assert saved_post.updated_at > original_time
+
+    @pytest.mark.asyncio
+    async def test_update_text_returns_none_when_post_not_found(self, unit_env):
+        """Updating text for non-existent post should return None."""
+        # Arrange
+        post_service = await unit_env.get(PostService)
+        post_id = PostId(uuid4())
+
+        # Act
+        result = await post_service.update_text(post_id, "New text")
+
+        # Assert
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_update_text_returns_none_when_post_deleted(self, unit_env):
+        """Updating text for deleted post should return None."""
+        # Arrange
+        post_service = await unit_env.get(PostService)
+        post_repo = await unit_env.get(PostRepository)
+
+        post_id = PostId(uuid4())
+        post = Post(
+            id=post_id,
+            tag_names=[TagName("discussion")],
+            author_id=UserId(uuid4()),
+            author_handle=Handle(root="author.bsky.social"),
+            title="Test Post",
+            url=None,
+            text="Original content",
+            points=1,
+            comment_count=0,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            deleted_at=datetime.now(),  # Deleted
+        )
+        await post_repo.save(post)
+
+        # Act
+        result = await post_service.update_text(post_id, "New text")
+
+        # Assert
+        assert result is None

@@ -19,8 +19,16 @@ from talk.application.usecase.post import (
     ListPostsRequest,
     ListPostsResponse,
     ListPostsUseCase,
+    UpdatePostRequest,
+    UpdatePostResponse,
+    UpdatePostUseCase,
 )
-from talk.domain.error import DomainError
+from talk.domain.error import (
+    ContentDeletedException,
+    DomainError,
+    InvalidEditOperationError,
+    NotAuthorizedError,
+)
 from talk.domain.repository.post import PostSortOrder
 from talk.util.jwt import JWTError
 
@@ -112,6 +120,102 @@ async def create_post(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create post",
+        )
+
+
+class UpdatePostAPIRequest(BaseModel):
+    """API request for updating a post."""
+
+    text: str | None = Field(default=None, max_length=10000)
+
+
+@router.patch("/{post_id}", response_model=UpdatePostResponse)
+async def update_post(
+    post_id: UUID,
+    request: UpdatePostAPIRequest,
+    update_post_use_case: FromDishka[UpdatePostUseCase],
+    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    auth_token: str | None = Cookie(default=None),
+) -> UpdatePostResponse:
+    """Update a post's text content.
+
+    Only the post author can edit. Only text-based posts (Discussion, Ask) can have text edited.
+
+    Args:
+        post_id: Post UUID
+        request: Update data (text content)
+        update_post_use_case: Update post use case from DI
+        get_current_user_use_case: Get current user use case from DI
+        auth_token: JWT token from cookie
+
+    Returns:
+        Updated post details
+
+    Raises:
+        HTTPException: If not authenticated, not authorized, or validation fails
+    """
+    # Verify authentication
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to edit posts",
+        )
+
+    try:
+        user = await get_current_user_use_case.execute(
+            GetCurrentUserRequest(token=auth_token)
+        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+            )
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+
+    # Update post
+    try:
+        use_case_request = UpdatePostRequest(
+            post_id=str(post_id),
+            user_id=user.user_id,
+            text=request.text,
+        )
+
+        result = await update_post_use_case.execute(use_case_request)
+        return result
+
+    except NotAuthorizedError as e:
+        logfire.warn("Unauthorized post update attempt", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to edit this post",
+        )
+    except ContentDeletedException as e:
+        logfire.warn("Attempt to edit deleted post", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found or has been deleted",
+        )
+    except InvalidEditOperationError as e:
+        logfire.warn("Invalid edit operation", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+    except ValueError as e:
+        logfire.warn("Post update validation error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logfire.error("Unexpected error updating post", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update post",
         )
 
 

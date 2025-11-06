@@ -8,6 +8,7 @@ from talk.application.usecase.auth import GetCurrentUserUseCase, LoginUseCase
 from talk.application.usecase.comment import (
     CreateCommentUseCase,
     GetCommentsUseCase,
+    UpdateCommentUseCase,
 )
 from talk.application.usecase.invite import (
     CreateInvitesUseCase,
@@ -18,6 +19,7 @@ from talk.application.usecase.post import (
     CreatePostUseCase,
     GetPostUseCase,
     ListPostsUseCase,
+    UpdatePostUseCase,
 )
 from talk.application.usecase.tag import ListTagsUseCase
 from talk.application.usecase.user import (
@@ -106,6 +108,15 @@ class ProdApplicationProvider(ProviderBase):
             post_repository=post_repository, vote_repository=vote_repository
         )
 
+    @provide(scope=Scope.REQUEST)
+    def get_update_post_use_case(
+        self, post_service: PostService, vote_repository: VoteRepository
+    ) -> UpdatePostUseCase:
+        """Provide update post use case."""
+        return UpdatePostUseCase(
+            post_service=post_service, vote_repository=vote_repository
+        )
+
     # Comment use cases
     @provide(scope=Scope.REQUEST)
     def get_create_comment_use_case(
@@ -129,6 +140,20 @@ class ProdApplicationProvider(ProviderBase):
             comment_service=comment_service,
             vote_service=vote_service,
             jwt_service=jwt_service,
+        )
+
+    @provide(scope=Scope.REQUEST)
+    def get_update_comment_use_case(
+        self,
+        comment_service: CommentService,
+        post_service: PostService,
+        vote_repository: VoteRepository,
+    ) -> UpdateCommentUseCase:
+        """Provide update comment use case."""
+        return UpdateCommentUseCase(
+            comment_service=comment_service,
+            post_service=post_service,
+            vote_repository=vote_repository,
         )
 
     # Vote use cases

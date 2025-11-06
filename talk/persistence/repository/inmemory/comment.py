@@ -1,5 +1,6 @@
 """In-memory comment repository for testing."""
 
+from datetime import datetime
 from typing import Optional
 
 from talk.domain.model.comment import Comment
@@ -127,3 +128,27 @@ class InMemoryCommentRepository(CommentRepository):
                 updated_at=comment.updated_at,
                 deleted_at=comment.deleted_at,
             )
+
+    async def update_text(self, comment_id: CommentId, text: str) -> Comment | None:
+        """Update the text content of a comment."""
+        comment = self._comments.get(comment_id)
+        if comment is None or comment.deleted_at is not None:
+            return None
+
+        # Create updated comment (since comments are immutable)
+        updated_comment = Comment(
+            id=comment.id,
+            post_id=comment.post_id,
+            author_id=comment.author_id,
+            author_handle=comment.author_handle,
+            text=text,
+            parent_id=comment.parent_id,
+            depth=comment.depth,
+            path=comment.path,
+            points=comment.points,
+            created_at=comment.created_at,
+            updated_at=datetime.now(),
+            deleted_at=comment.deleted_at,
+        )
+        self._comments[comment_id] = updated_comment
+        return updated_comment

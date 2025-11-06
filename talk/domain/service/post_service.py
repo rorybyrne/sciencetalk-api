@@ -115,3 +115,35 @@ class PostService(Service):
         with logfire.span("post_service.decrement_points", post_id=str(post_id)):
             await self.post_repository.decrement_points(post_id)
             logfire.info("Post points decremented", post_id=str(post_id))
+
+    async def update_text(self, post_id: PostId, text: str | None) -> Post | None:
+        """Update the text content of a post.
+
+        Args:
+            post_id: Post ID
+            text: New text content (None to clear)
+
+        Returns:
+            Updated post if found and updated, None if post doesn't exist or is deleted
+        """
+        with logfire.span(
+            "post_service.update_text",
+            post_id=str(post_id),
+            text_length=len(text) if text else 0,
+            clearing_text=text is None,
+        ):
+            updated = await self.post_repository.update_text(post_id, text)
+
+            if updated:
+                logfire.info(
+                    "Post text updated",
+                    post_id=str(post_id),
+                    title=updated.title,
+                    text_length=len(updated.text) if updated.text else 0,
+                )
+            else:
+                logfire.warn(
+                    "Post not found or deleted for text update", post_id=str(post_id)
+                )
+
+            return updated

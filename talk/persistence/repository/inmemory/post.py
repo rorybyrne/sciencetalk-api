@@ -1,5 +1,6 @@
 """In-memory post repository for testing."""
 
+from datetime import datetime
 from typing import Optional
 
 from talk.domain.model.post import Post
@@ -141,3 +142,27 @@ class InMemoryPostRepository(PostRepository):
                 updated_at=post.updated_at,
                 deleted_at=post.deleted_at,
             )
+
+    async def update_text(self, post_id: PostId, text: str | None) -> Post | None:
+        """Update the text content of a post."""
+        post = self._posts.get(post_id)
+        if post is None or post.deleted_at is not None:
+            return None
+
+        # Create updated post (since posts are immutable)
+        updated_post = Post(
+            id=post.id,
+            title=post.title,
+            tag_names=post.tag_names,
+            author_id=post.author_id,
+            author_handle=post.author_handle,
+            url=post.url,
+            text=text,
+            points=post.points,
+            comment_count=post.comment_count,
+            created_at=post.created_at,
+            updated_at=datetime.now(),
+            deleted_at=post.deleted_at,
+        )
+        self._posts[post_id] = updated_post
+        return updated_post

@@ -142,3 +142,16 @@ class PostRepository(ABC):
             post_id: The post ID
         """
         pass
+
+    @abstractmethod
+    async def update_text(self, post_id: PostId, text: str | None) -> Optional[Post]:
+        """Update the text content of a post.
+
+        Args:
+            post_id: ID of the post to update
+            text: New text content (None to clear)
+
+        Returns:
+            Updated Post entity, or None if post doesn't exist or is deleted
+        """
+        pass

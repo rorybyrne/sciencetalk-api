@@ -2,10 +2,11 @@
 
 import logfire
 from collections import defaultdict
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete, desc, func, insert, select
+from sqlalchemy import delete, desc, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import Post
@@ -274,8 +275,6 @@ class PostgresPostRepository(PostRepository):
 
     async def increment_points(self, post_id: PostId) -> None:
         """Atomically increment points by 1."""
-        from datetime import datetime
-
         stmt = (
             posts_table.update()
             .where(posts_table.c.id == post_id)
@@ -289,8 +288,6 @@ class PostgresPostRepository(PostRepository):
 
     async def decrement_points(self, post_id: PostId) -> None:
         """Atomically decrement points by 1 (minimum 1)."""
-        from datetime import datetime
-
         stmt = (
             posts_table.update()
             .where(posts_table.c.id == post_id)
@@ -302,3 +299,35 @@ class PostgresPostRepository(PostRepository):
         )
         await self.session.execute(stmt)
         await self.session.flush()
+
+    async def update_text(self, post_id: PostId, text: str | None) -> Post | None:
+        """Update the text content of a post."""
+        with logfire.span(
+            "post_repository.update_text",
+            post_id=str(post_id),
+            text_length=len(text) if text else 0,
+        ):
+            stmt = (
+                update(posts_table)
+                .where(posts_table.c.id == post_id)
+                .where(posts_table.c.deleted_at.is_(None))
+                .values(
+                    text=text,
+                    updated_at=datetime.now(),
+                )
+                .returning(posts_table)
+            )
+
+            result = await self.session.execute(stmt)
+            row = result.fetchone()
+
+            if row is None:
+                logfire.warn("Post not found or deleted", post_id=str(post_id))
+                return None
+
+            # Fetch tags for this post
+            post_tag_map = await self._fetch_tags_for_posts([post_id])
+            tag_names = post_tag_map.get(post_id, [])
+
+            await self.session.flush()
+            return row_to_post(row._asdict(), tag_names=tag_names)

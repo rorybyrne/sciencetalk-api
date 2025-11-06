@@ -145,3 +145,16 @@ class CommentRepository(ABC):
             comment_id: The comment ID
         """
         pass
+
+    @abstractmethod
+    async def update_text(self, comment_id: CommentId, text: str) -> Optional[Comment]:
+        """Update the text content of a comment.
+
+        Args:
+            comment_id: ID of the comment to update
+            text: New text content
+
+        Returns:
+            Updated Comment entity, or None if comment doesn't exist or is deleted
+        """
+        pass

@@ -174,3 +174,36 @@ class CommentService(Service):
         ):
             await self.comment_repository.decrement_points(comment_id)
             logfire.info("Comment points decremented", comment_id=str(comment_id))
+
+    async def update_text(self, comment_id: CommentId, text: str) -> Comment | None:
+        """Update the text content of a comment.
+
+        Args:
+            comment_id: Comment ID
+            text: New text content
+
+        Returns:
+            Updated comment if found and updated, None if comment doesn't exist or is deleted
+        """
+        with logfire.span(
+            "comment_service.update_text",
+            comment_id=str(comment_id),
+            text_length=len(text),
+        ):
+            updated = await self.comment_repository.update_text(comment_id, text)
+
+            if updated:
+                logfire.info(
+                    "Comment text updated",
+                    comment_id=str(comment_id),
+                    post_id=str(updated.post_id),
+                    text_length=len(updated.text),
+                    depth=updated.depth,
+                )
+            else:
+                logfire.warn(
+                    "Comment not found or deleted for text update",
+                    comment_id=str(comment_id),
+                )
+
+            return updated

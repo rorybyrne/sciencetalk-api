@@ -159,3 +159,92 @@ class TestCreateComment:
                 text="Test",
                 parent_id=parent_id,
             )
+
+
+class TestUpdateText:
+    """Tests for update_text method."""
+
+    @pytest.mark.asyncio
+    async def test_update_text_updates_comment_text(self, unit_env):
+        """Updating text should update comment text and timestamp."""
+        # Arrange
+        comment_service = await unit_env.get(CommentService)
+        comment_repo = await unit_env.get(CommentRepository)
+
+        comment_id = CommentId(uuid4())
+        post_id = PostId(uuid4())
+        original_time = datetime(2024, 1, 1, 12, 0, 0)
+        original_text = "Original comment"
+        new_text = "Updated comment"
+
+        comment = Comment(
+            id=comment_id,
+            post_id=post_id,
+            author_id=UserId(uuid4()),
+            author_handle=Handle(root="author.bsky.social"),
+            text=original_text,
+            parent_id=None,
+            depth=0,
+            path="1",
+            points=1,
+            created_at=original_time,
+            updated_at=original_time,
+            deleted_at=None,
+        )
+        await comment_repo.save(comment)
+
+        # Act
+        result = await comment_service.update_text(comment_id, new_text)
+
+        # Assert
+        assert result is not None
+        assert result.text == new_text
+        assert result.updated_at > original_time
+
+        # Verify it was saved
+        saved_comment = await comment_repo.find_by_id(comment_id)
+        assert saved_comment.text == new_text
+        assert saved_comment.updated_at > original_time
+
+    @pytest.mark.asyncio
+    async def test_update_text_returns_none_when_comment_not_found(self, unit_env):
+        """Updating text for non-existent comment should return None."""
+        # Arrange
+        comment_service = await unit_env.get(CommentService)
+        comment_id = CommentId(uuid4())
+
+        # Act
+        result = await comment_service.update_text(comment_id, "New text")
+
+        # Assert
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_update_text_returns_none_when_comment_deleted(self, unit_env):
+        """Updating text for deleted comment should return None."""
+        # Arrange
+        comment_service = await unit_env.get(CommentService)
+        comment_repo = await unit_env.get(CommentRepository)
+
+        comment_id = CommentId(uuid4())
+        comment = Comment(
+            id=comment_id,
+            post_id=PostId(uuid4()),
+            author_id=UserId(uuid4()),
+            author_handle=Handle(root="author.bsky.social"),
+            text="Original comment",
+            parent_id=None,
+            depth=0,
+            path="1",
+            points=1,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            deleted_at=datetime.now(),  # Deleted
+        )
+        await comment_repo.save(comment)
+
+        # Act
+        result = await comment_service.update_text(comment_id, "New text")
+
+        # Assert
+        assert result is None

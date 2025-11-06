@@ -1,5 +1,6 @@
 """Comment routes."""
 
+import logfire
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel, Field
@@ -13,7 +14,11 @@ from talk.application.usecase.comment import (
     GetCommentsRequest,
     GetCommentsResponse,
     GetCommentsUseCase,
+    UpdateCommentRequest,
+    UpdateCommentResponse,
+    UpdateCommentUseCase,
 )
+from talk.domain.error import ContentDeletedException, NotAuthorizedError
 from talk.util.jwt import JWTError
 
 router = APIRouter(prefix="/posts", tags=["comments"], route_class=DishkaRoute)
@@ -91,6 +96,99 @@ async def create_comment(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        )
+
+
+class UpdateCommentAPIRequest(BaseModel):
+    """API request for updating a comment."""
+
+    text: str = Field(min_length=1, max_length=10000)
+
+
+@router.patch("/{post_id}/comments/{comment_id}", response_model=UpdateCommentResponse)
+async def update_comment(
+    post_id: str,
+    comment_id: str,
+    request: UpdateCommentAPIRequest,
+    update_comment_use_case: FromDishka[UpdateCommentUseCase],
+    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    auth_token: str | None = Cookie(default=None),
+) -> UpdateCommentResponse:
+    """Update a comment's text content.
+
+    Only the comment author can edit.
+
+    Args:
+        post_id: Post UUID
+        comment_id: Comment UUID
+        request: Update data (text content)
+        update_comment_use_case: Update comment use case from DI
+        get_current_user_use_case: Get current user use case from DI
+        auth_token: JWT token from cookie
+
+    Returns:
+        Updated comment details
+
+    Raises:
+        HTTPException: If not authenticated, not authorized, or validation fails
+    """
+    # Verify authentication
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to edit comments",
+        )
+
+    try:
+        user = await get_current_user_use_case.execute(
+            GetCurrentUserRequest(token=auth_token)
+        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+            )
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+
+    # Update comment
+    try:
+        use_case_request = UpdateCommentRequest(
+            comment_id=comment_id,
+            post_id=post_id,
+            user_id=user.user_id,
+            text=request.text,
+        )
+
+        result = await update_comment_use_case.execute(use_case_request)
+        return result
+
+    except NotAuthorizedError as e:
+        logfire.warn("Unauthorized comment update attempt", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to edit this comment",
+        )
+    except ContentDeletedException as e:
+        logfire.warn("Attempt to edit deleted comment", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment or post not found or has been deleted",
+        )
+    except ValueError as e:
+        logfire.warn("Comment update validation error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logfire.error("Unexpected error updating comment", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update comment",
         )
 
 
