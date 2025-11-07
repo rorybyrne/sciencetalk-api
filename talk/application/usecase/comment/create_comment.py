@@ -29,6 +29,7 @@ class CreateCommentResponse(BaseModel):
     parent_id: str | None
     depth: int
     created_at: datetime
+    content_updated_at: datetime
 
 
 class CreateCommentUseCase:
@@ -94,4 +95,5 @@ class CreateCommentUseCase:
             parent_id=str(comment.parent_id) if comment.parent_id else None,
             depth=comment.depth,
             created_at=comment.created_at,
+            content_updated_at=comment.content_updated_at,
         )

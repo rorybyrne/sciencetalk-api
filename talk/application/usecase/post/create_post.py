@@ -32,6 +32,8 @@ class CreatePostResponse(BaseModel):
     tag_names: list[str]
     points: int
     created_at: datetime
+    comments_updated_at: datetime
+    content_updated_at: datetime
 
 
 class CreatePostUseCase:
@@ -108,4 +110,6 @@ class CreatePostUseCase:
                 tag_names=[tag.root for tag in saved_post.tag_names],
                 points=saved_post.points,
                 created_at=saved_post.created_at,
+                comments_updated_at=saved_post.comments_updated_at,
+                content_updated_at=saved_post.content_updated_at,
             )
