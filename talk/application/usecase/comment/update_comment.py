@@ -34,7 +34,7 @@ class UpdateCommentResponse(BaseModel):
     path: str | None
     points: int
     created_at: datetime
-    updated_at: datetime
+    content_updated_at: datetime
     has_voted: bool
 
 
@@ -132,6 +132,6 @@ class UpdateCommentUseCase:
             path=updated_comment.path,
             points=updated_comment.points,
             created_at=updated_comment.created_at,
-            updated_at=updated_comment.updated_at,
+            content_updated_at=updated_comment.content_updated_at,
             has_voted=has_voted,
         )

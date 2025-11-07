@@ -31,7 +31,8 @@ class GetPostResponse(BaseModel):
     points: int
     comment_count: int
     created_at: datetime
-    updated_at: datetime
+    comments_updated_at: datetime
+    content_updated_at: datetime
     has_voted: bool
 
 
@@ -90,6 +91,7 @@ class GetPostUseCase:
             points=post.points,
             comment_count=post.comment_count,
             created_at=post.created_at,
-            updated_at=post.updated_at,
+            comments_updated_at=post.comments_updated_at,
+            content_updated_at=post.content_updated_at,
             has_voted=has_voted,
         )

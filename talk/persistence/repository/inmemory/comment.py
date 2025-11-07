@@ -94,6 +94,7 @@ class InMemoryCommentRepository(CommentRepository):
         comment = self._comments.get(comment_id)
         if comment:
             # Create updated comment (since comments are immutable)
+            # Note: Votes don't update timestamps
             self._comments[comment_id] = Comment(
                 id=comment.id,
                 post_id=comment.post_id,
@@ -105,7 +106,7 @@ class InMemoryCommentRepository(CommentRepository):
                 path=comment.path,
                 points=comment.points + 1,
                 created_at=comment.created_at,
-                updated_at=comment.updated_at,
+                content_updated_at=comment.content_updated_at,
                 deleted_at=comment.deleted_at,
             )
 
@@ -114,6 +115,7 @@ class InMemoryCommentRepository(CommentRepository):
         comment = self._comments.get(comment_id)
         if comment and comment.points > 1:
             # Create updated comment (since comments are immutable)
+            # Note: Votes don't update timestamps
             self._comments[comment_id] = Comment(
                 id=comment.id,
                 post_id=comment.post_id,
@@ -125,7 +127,7 @@ class InMemoryCommentRepository(CommentRepository):
                 path=comment.path,
                 points=comment.points - 1,
                 created_at=comment.created_at,
-                updated_at=comment.updated_at,
+                content_updated_at=comment.content_updated_at,
                 deleted_at=comment.deleted_at,
             )
 
@@ -147,7 +149,7 @@ class InMemoryCommentRepository(CommentRepository):
             path=comment.path,
             points=comment.points,
             created_at=comment.created_at,
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),  # Update content timestamp
             deleted_at=comment.deleted_at,
         )
         self._comments[comment_id] = updated_comment

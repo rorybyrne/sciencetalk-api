@@ -158,7 +158,8 @@ def row_to_post(row: Dict[str, Any], tag_names: list[str] | None = None) -> Post
         points=row["points"],
         comment_count=row["comment_count"],
         created_at=row["created_at"],
-        updated_at=row["updated_at"],
+        comments_updated_at=row["comments_updated_at"],
+        content_updated_at=row["content_updated_at"],
         deleted_at=row.get("deleted_at"),
     )
 
@@ -210,7 +211,7 @@ def row_to_comment(row: Dict[str, Any]) -> Comment:
         path=row.get("path"),
         points=row["points"],
         created_at=row["created_at"],
-        updated_at=row["updated_at"],
+        content_updated_at=row["content_updated_at"],
         deleted_at=row.get("deleted_at"),
     )
 

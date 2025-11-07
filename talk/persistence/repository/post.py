@@ -111,9 +111,7 @@ class PostgresPostRepository(PostRepository):
             if sort == PostSortOrder.RECENT:
                 stmt = stmt.order_by(desc(posts_table.c.created_at))
             else:  # ACTIVE - sort by most recent comment
-                # For active sorting, we'd need a subquery to find last comment time
-                # For now, fall back to created_at (can optimize later)
-                stmt = stmt.order_by(desc(posts_table.c.updated_at))
+                stmt = stmt.order_by(desc(posts_table.c.comments_updated_at))
 
             # Pagination
             stmt = stmt.limit(limit).offset(offset)
@@ -277,10 +275,7 @@ class PostgresPostRepository(PostRepository):
         stmt = (
             posts_table.update()
             .where(posts_table.c.id == post_id)
-            .values(
-                points=posts_table.c.points + 1,
-                # updated_at is set by database trigger
-            )
+            .values(points=posts_table.c.points + 1)
         )
         await self.session.execute(stmt)
         await self.session.flush()
@@ -291,10 +286,7 @@ class PostgresPostRepository(PostRepository):
             posts_table.update()
             .where(posts_table.c.id == post_id)
             .where(posts_table.c.points > 1)  # Don't go below 1
-            .values(
-                points=posts_table.c.points - 1,
-                # updated_at is set by database trigger
-            )
+            .values(points=posts_table.c.points - 1)
         )
         await self.session.execute(stmt)
         await self.session.flush()
@@ -312,7 +304,7 @@ class PostgresPostRepository(PostRepository):
                 .where(posts_table.c.deleted_at.is_(None))
                 .values(
                     text=text,
-                    # updated_at is set by database trigger
+                    content_updated_at=func.now(),
                 )
                 .returning(posts_table)
             )

@@ -146,10 +146,7 @@ class PostgresCommentRepository(CommentRepository):
         stmt = (
             comments_table.update()
             .where(comments_table.c.id == comment_id)
-            .values(
-                points=comments_table.c.points + 1,
-                # updated_at is set by database trigger
-            )
+            .values(points=comments_table.c.points + 1)
         )
         await self.session.execute(stmt)
         await self.session.flush()
@@ -160,10 +157,7 @@ class PostgresCommentRepository(CommentRepository):
             comments_table.update()
             .where(comments_table.c.id == comment_id)
             .where(comments_table.c.points > 1)  # Don't go below 1
-            .values(
-                points=comments_table.c.points - 1,
-                # updated_at is set by database trigger
-            )
+            .values(points=comments_table.c.points - 1)
         )
         await self.session.execute(stmt)
         await self.session.flush()
@@ -176,7 +170,7 @@ class PostgresCommentRepository(CommentRepository):
             .where(comments_table.c.deleted_at.is_(None))
             .values(
                 text=text,
-                # updated_at is set by database trigger
+                content_updated_at=func.now(),
             )
             .returning(comments_table)
         )

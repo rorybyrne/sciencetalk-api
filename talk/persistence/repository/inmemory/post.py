@@ -42,7 +42,7 @@ class InMemoryPostRepository(PostRepository):
         if sort == PostSortOrder.RECENT:
             posts.sort(key=lambda p: p.created_at, reverse=True)
         else:  # PostSortOrder.ACTIVE
-            posts.sort(key=lambda p: p.updated_at, reverse=True)
+            posts.sort(key=lambda p: p.comments_updated_at, reverse=True)
 
         # Paginate
         return posts[offset : offset + limit]
@@ -108,6 +108,7 @@ class InMemoryPostRepository(PostRepository):
         post = self._posts.get(post_id)
         if post:
             # Create updated post (since posts are immutable)
+            # Note: Votes don't update timestamps
             self._posts[post_id] = Post(
                 id=post.id,
                 title=post.title,
@@ -119,7 +120,8 @@ class InMemoryPostRepository(PostRepository):
                 points=post.points + 1,
                 comment_count=post.comment_count,
                 created_at=post.created_at,
-                updated_at=post.updated_at,
+                comments_updated_at=post.comments_updated_at,
+                content_updated_at=post.content_updated_at,
                 deleted_at=post.deleted_at,
             )
 
@@ -128,6 +130,7 @@ class InMemoryPostRepository(PostRepository):
         post = self._posts.get(post_id)
         if post and post.points > 1:
             # Create updated post (since posts are immutable)
+            # Note: Votes don't update timestamps
             self._posts[post_id] = Post(
                 id=post.id,
                 title=post.title,
@@ -139,7 +142,8 @@ class InMemoryPostRepository(PostRepository):
                 points=post.points - 1,
                 comment_count=post.comment_count,
                 created_at=post.created_at,
-                updated_at=post.updated_at,
+                comments_updated_at=post.comments_updated_at,
+                content_updated_at=post.content_updated_at,
                 deleted_at=post.deleted_at,
             )
 
@@ -161,7 +165,8 @@ class InMemoryPostRepository(PostRepository):
             points=post.points,
             comment_count=post.comment_count,
             created_at=post.created_at,
-            updated_at=datetime.now(),
+            comments_updated_at=post.comments_updated_at,  # Don't update on text edit
+            content_updated_at=datetime.now(),  # Update content timestamp
             deleted_at=post.deleted_at,
         )
         self._posts[post_id] = updated_post

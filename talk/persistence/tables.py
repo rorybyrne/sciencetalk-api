@@ -124,7 +124,16 @@ posts_table = Table(
         "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     ),
     Column(
-        "updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+        "comments_updated_at",
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="NOW()",
+    ),
+    Column(
+        "content_updated_at",
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="NOW()",
     ),
     Column("deleted_at", TIMESTAMP(timezone=True), nullable=True),
     CheckConstraint(
@@ -178,7 +187,10 @@ comments_table = Table(
         "created_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     ),
     Column(
-        "updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
+        "content_updated_at",
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default="NOW()",
     ),
     Column("deleted_at", TIMESTAMP(timezone=True), nullable=True),
     CheckConstraint("depth >= 0", name="depth_non_negative"),

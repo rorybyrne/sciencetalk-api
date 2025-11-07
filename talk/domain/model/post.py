@@ -34,7 +34,8 @@ class Post(DomainModel):
     points: int = Field(default=1, ge=1)
     comment_count: int = Field(default=0, ge=0)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    comments_updated_at: datetime = Field(default_factory=datetime.now)
+    content_updated_at: datetime = Field(default_factory=datetime.now)
     deleted_at: Optional[datetime] = None
 
     @model_validator(mode="after")

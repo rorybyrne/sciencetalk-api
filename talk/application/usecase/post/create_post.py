@@ -92,7 +92,8 @@ class CreatePostUseCase:
                 points=1,  # New posts start with 1 point
                 comment_count=0,
                 created_at=now,
-                updated_at=now,
+                comments_updated_at=now,  # Initially same as created_at
+                content_updated_at=now,  # Initially same as created_at
                 deleted_at=None,
             )
 

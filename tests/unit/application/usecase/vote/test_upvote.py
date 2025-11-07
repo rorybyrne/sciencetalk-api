@@ -35,6 +35,7 @@ class TestUpvoteUseCase:
         user_id = UserId(uuid4())
 
         # Create post first
+        now = datetime.now()
         post = Post(
             id=post_id,
             tag_names=[TagName("discussion")],
@@ -45,8 +46,9 @@ class TestUpvoteUseCase:
             text="Test content",
             points=1,
             comment_count=0,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=now,
+            comments_updated_at=now,
+            content_updated_at=now,
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -81,6 +83,7 @@ class TestUpvoteUseCase:
         user_id = UserId(uuid4())
 
         # Create comment first
+        now = datetime.now()
         comment = Comment(
             id=comment_id,
             post_id=PostId(uuid4()),
@@ -91,8 +94,8 @@ class TestUpvoteUseCase:
             depth=0,
             path="1",
             points=1,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=now,
+            content_updated_at=now,
             deleted_at=None,
         )
         await comment_repo.save(comment)

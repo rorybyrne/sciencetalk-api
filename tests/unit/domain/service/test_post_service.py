@@ -40,7 +40,8 @@ class TestIncrementCommentCount:
             points=1,
             comment_count=5,
             created_at=original_time,
-            updated_at=original_time,
+            comments_updated_at=original_time,
+            content_updated_at=original_time,
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -50,12 +51,12 @@ class TestIncrementCommentCount:
 
         # Assert
         assert result.comment_count == 6
-        assert result.updated_at > original_time
+        assert result.comments_updated_at > original_time
 
         # Verify it was saved
         saved_post = await post_repo.find_by_id(post_id)
         assert saved_post.comment_count == 6
-        assert saved_post.updated_at > original_time
+        assert saved_post.comments_updated_at > original_time
 
     @pytest.mark.asyncio
     async def test_increment_comment_count_raises_error_when_post_not_found(
@@ -97,7 +98,8 @@ class TestUpdateText:
             points=1,
             comment_count=0,
             created_at=original_time,
-            updated_at=original_time,
+            comments_updated_at=original_time,
+            content_updated_at=original_time,
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -108,12 +110,12 @@ class TestUpdateText:
         # Assert
         assert result is not None
         assert result.text == new_text
-        assert result.updated_at > original_time
+        assert result.content_updated_at > original_time
 
         # Verify it was saved
         saved_post = await post_repo.find_by_id(post_id)
         assert saved_post.text == new_text
-        assert saved_post.updated_at > original_time
+        assert saved_post.content_updated_at > original_time
 
     @pytest.mark.asyncio
     async def test_update_text_returns_none_when_post_not_found(self, unit_env):
@@ -136,6 +138,7 @@ class TestUpdateText:
         post_repo = await unit_env.get(PostRepository)
 
         post_id = PostId(uuid4())
+        now = datetime.now()
         post = Post(
             id=post_id,
             tag_names=[TagName("discussion")],
@@ -146,9 +149,10 @@ class TestUpdateText:
             text="Original content",
             points=1,
             comment_count=0,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            deleted_at=datetime.now(),  # Deleted
+            created_at=now,
+            comments_updated_at=now,
+            content_updated_at=now,
+            deleted_at=now,  # Deleted
         )
         await post_repo.save(post)
 

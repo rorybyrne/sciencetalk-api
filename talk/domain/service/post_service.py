@@ -76,11 +76,12 @@ class PostService(Service):
                 )
                 raise ValueError("Post not found")
 
-            # Update comment count (domain models are immutable)
+            # Update comment count and last comment timestamp (domain models are immutable)
+            now = datetime.now()
             updated_post = post.model_copy(
                 update={
                     "comment_count": post.comment_count + 1,
-                    "updated_at": datetime.now(),
+                    "comments_updated_at": now,
                 }
             )
 

@@ -65,6 +65,7 @@ class TestCreateComment:
         text = "Reply comment"
 
         # Create parent comment first
+        now = datetime.now()
         parent_comment = Comment(
             id=parent_id,
             post_id=post_id,
@@ -75,8 +76,8 @@ class TestCreateComment:
             depth=2,  # Parent has depth 2
             path="1.2",
             points=1,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=now,
+            content_updated_at=now,
             deleted_at=None,
         )
         await comment_repo.save(parent_comment)
@@ -134,6 +135,7 @@ class TestCreateComment:
         author_handle = Handle(root="user.bsky.social")
 
         # Create parent comment belonging to different post
+        now = datetime.now()
         parent_comment = Comment(
             id=parent_id,
             post_id=different_post_id,  # Different post!
@@ -144,8 +146,8 @@ class TestCreateComment:
             depth=0,
             path="1",
             points=1,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=now,
+            content_updated_at=now,
             deleted_at=None,
         )
         await comment_repo.save(parent_comment)
@@ -188,7 +190,7 @@ class TestUpdateText:
             path="1",
             points=1,
             created_at=original_time,
-            updated_at=original_time,
+            content_updated_at=original_time,
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -199,12 +201,12 @@ class TestUpdateText:
         # Assert
         assert result is not None
         assert result.text == new_text
-        assert result.updated_at > original_time
+        assert result.content_updated_at > original_time
 
         # Verify it was saved
         saved_comment = await comment_repo.find_by_id(comment_id)
         assert saved_comment.text == new_text
-        assert saved_comment.updated_at > original_time
+        assert saved_comment.content_updated_at > original_time
 
     @pytest.mark.asyncio
     async def test_update_text_returns_none_when_comment_not_found(self, unit_env):
@@ -227,6 +229,7 @@ class TestUpdateText:
         comment_repo = await unit_env.get(CommentRepository)
 
         comment_id = CommentId(uuid4())
+        now = datetime.now()
         comment = Comment(
             id=comment_id,
             post_id=PostId(uuid4()),
@@ -237,9 +240,9 @@ class TestUpdateText:
             depth=0,
             path="1",
             points=1,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            deleted_at=datetime.now(),  # Deleted
+            created_at=now,
+            content_updated_at=now,
+            deleted_at=now,  # Deleted
         )
         await comment_repo.save(comment)
 

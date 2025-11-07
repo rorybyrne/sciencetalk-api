@@ -87,7 +87,7 @@ class CommentService(Service):
                 path=None,  # Set by database trigger
                 points=1,
                 created_at=now,
-                updated_at=now,
+                content_updated_at=now,  # Initially same as created_at
                 deleted_at=None,
             )
 

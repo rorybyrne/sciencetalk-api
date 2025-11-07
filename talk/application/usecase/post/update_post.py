@@ -37,7 +37,8 @@ class UpdatePostResponse(BaseModel):
     points: int
     comment_count: int
     created_at: datetime
-    updated_at: datetime
+    comments_updated_at: datetime
+    content_updated_at: datetime
     has_voted: bool
 
 
@@ -120,6 +121,7 @@ class UpdatePostUseCase:
             points=updated_post.points,
             comment_count=updated_post.comment_count,
             created_at=updated_post.created_at,
-            updated_at=updated_post.updated_at,
+            comments_updated_at=updated_post.comments_updated_at,
+            content_updated_at=updated_post.content_updated_at,
             has_voted=has_voted,
         )

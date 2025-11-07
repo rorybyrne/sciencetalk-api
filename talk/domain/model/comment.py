@@ -36,5 +36,5 @@ class Comment(DomainModel):
     path: Optional[str] = None  # Managed by database trigger
     points: int = Field(default=1, ge=1)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    content_updated_at: datetime = Field(default_factory=datetime.now)
     deleted_at: Optional[datetime] = None
