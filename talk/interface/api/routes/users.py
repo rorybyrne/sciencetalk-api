@@ -33,7 +33,7 @@ class UpdateUserProfileAPIRequest(BaseModel):
     email: str | None = None
 
 
-@router.get("/", response_model=GetUserTreeResponse)
+@router.get("", response_model=GetUserTreeResponse)
 async def get_user_tree(
     get_user_tree_use_case: FromDishka[GetUserTreeUseCase],
     include_karma: bool = Query(default=True, description="Include karma in response"),
