@@ -67,7 +67,7 @@ def upgrade() -> None:
     op.execute("""
         UPDATE posts
         SET slug = slugify_title(title, id)
-        WHERE slug IS NULL
+        WHERE posts.slug IS NULL
     """)
 
     # Drop temporary function
