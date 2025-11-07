@@ -36,7 +36,7 @@ def upgrade() -> None:
         RETURNS TEXT AS $$
         DECLARE
             base_slug TEXT;
-            slug TEXT;
+            result_slug TEXT;
             counter INT := 1;
         BEGIN
             -- Convert to lowercase, replace non-alphanumeric with hyphens
@@ -52,13 +52,13 @@ def upgrade() -> None:
             END IF;
 
             -- Handle collisions by appending counter
-            slug := base_slug;
-            WHILE EXISTS (SELECT 1 FROM posts WHERE posts.slug = slug) LOOP
-                slug := substring(base_slug from 1 for 100 - length('-' || counter::text)) || '-' || counter;
+            result_slug := base_slug;
+            WHILE EXISTS (SELECT 1 FROM posts WHERE posts.slug = result_slug) LOOP
+                result_slug := substring(base_slug from 1 for 100 - length('-' || counter::text)) || '-' || counter;
                 counter := counter + 1;
             END LOOP;
 
-            RETURN slug;
+            RETURN result_slug;
         END;
         $$ LANGUAGE plpgsql
     """)
