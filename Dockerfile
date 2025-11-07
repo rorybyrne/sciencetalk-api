@@ -48,9 +48,9 @@ RUN echo "${GIT_SHA}" > /app/version.txt
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
 
-# Copy startup script
-COPY scripts/start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+# Copy startup scripts
+COPY scripts/ ./scripts/
+RUN chmod +x /app/scripts/start.sh
 
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH"
@@ -64,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
 # Run the startup script
-CMD ["/app/start.sh"]
+CMD ["/app/scripts/start.sh"]

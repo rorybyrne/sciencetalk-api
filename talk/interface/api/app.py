@@ -17,20 +17,22 @@ from talk.interface.api.routes import (
 )
 from talk.util.di.container import create_container, setup_di
 from talk.util.observability import (
-    configure_logfire,
     instrument_fastapi,
     instrument_httpx,
 )
 
 
 def create_app() -> FastAPI:
-    """Create FastAPI application."""
+    """Create FastAPI application.
+
+    Note: Logfire should be configured before calling this function.
+    In production, start_app.py handles this.
+    In tests, configure in conftest.py if needed.
+    """
     settings = Settings()
 
-    # Configure observability (Logfire) first
-    configure_logfire(settings)
-
     # Instrument httpx for outbound HTTP requests
+    # (Logfire must be configured before instrumentation)
     instrument_httpx()
 
     app_instance = FastAPI(
@@ -91,4 +93,7 @@ def create_app() -> FastAPI:
 
 
 # Create app instance for uvicorn
+# Note: Logfire must be configured before this module is imported
+# In production: start_app.py handles this
+# In tests: configure in conftest.py
 app = create_app()

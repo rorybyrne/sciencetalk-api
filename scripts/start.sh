@@ -6,7 +6,7 @@ echo "Science Talk API - Container Startup"
 echo "========================================"
 
 echo "Running database migrations..."
-alembic upgrade head
+python scripts/run_migrations.py
 
 echo "Starting application server..."
-exec uvicorn talk.interface.api.app:app --host 0.0.0.0 --port 8000
+exec python scripts/start_app.py

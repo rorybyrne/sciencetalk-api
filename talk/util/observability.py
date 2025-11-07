@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from talk.config import Settings
 
 
-def configure_logfire(settings: Settings) -> None:
+def configure_logfire(settings: Settings, service_name: str = "talk-backend") -> None:
     """Configure Logfire for observability.
 
     Sets up Logfire with environment-specific configuration:
@@ -52,7 +52,7 @@ def configure_logfire(settings: Settings) -> None:
 
     # Build configuration kwargs
     config_kwargs = {
-        "service_name": "talk-backend",
+        "service_name": service_name,
         "service_version": settings.git_sha,  # Use git SHA as version
         "environment": settings.environment,
         "send_to_logfire": send_to_logfire,

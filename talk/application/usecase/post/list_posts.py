@@ -99,16 +99,21 @@ class ListPostsUseCase:
             )
 
             # Get user's votes for these posts (if authenticated)
+            # Use batch query to avoid N+1 problem
             user_votes = {}
-            if request.user_id:
+            if request.user_id and posts:
                 user_id = UserId(UUID(request.user_id))
-                for post in posts:
-                    vote = await self.vote_repository.find_by_user_and_votable(
-                        user_id=user_id,
-                        votable_type=VotableType.POST,
-                        votable_id=post.id,
-                    )
-                    user_votes[str(post.id)] = vote is not None
+                post_ids = [post.id for post in posts]
+                votes = await self.vote_repository.find_by_user_and_votables(
+                    user_id=user_id,
+                    votable_type=VotableType.POST,
+                    votable_ids=post_ids,
+                )
+                # Create a set of post IDs that the user has voted on
+                voted_post_ids = {str(vote.votable_id) for vote in votes}
+                user_votes = {
+                    str(post.id): str(post.id) in voted_post_ids for post in posts
+                }
 
             # Convert to response items
             post_items = [

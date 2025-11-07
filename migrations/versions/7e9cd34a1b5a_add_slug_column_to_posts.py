@@ -39,8 +39,8 @@ def upgrade() -> None:
             result_slug TEXT;
             counter INT := 1;
         BEGIN
-            -- Convert to lowercase, replace non-alphanumeric with hyphens
-            base_slug := lower(regexp_replace(title, '[^a-z0-9]+', '-', 'g'));
+            -- Convert to lowercase first, then replace non-alphanumeric with hyphens
+            base_slug := regexp_replace(lower(title), '[^a-z0-9]+', '-', 'g');
             -- Remove leading/trailing hyphens
             base_slug := trim(both '-' from base_slug);
             -- Truncate to 100 characters
