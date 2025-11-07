@@ -44,19 +44,6 @@ class InMemoryVoteRepository(VoteRepository):
         """Find all votes by a user."""
         return [v for v in self._votes if v.user_id == user_id]
 
-    async def find_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: PostId | CommentId,
-    ) -> list[Vote]:
-        """Find all votes for a votable item."""
-        votable_uuid = UUID(str(votable_id))
-        return [
-            v
-            for v in self._votes
-            if v.votable_type == votable_type and v.votable_id == votable_uuid
-        ]
-
     async def save(self, vote: Vote) -> Vote:
         """Save a vote.
 
@@ -99,19 +86,6 @@ class InMemoryVoteRepository(VoteRepository):
                 self._votes.pop(i)
                 return True
         return False
-
-    async def count_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: PostId | CommentId,
-    ) -> int:
-        """Count votes for a votable item."""
-        votable_uuid = UUID(str(votable_id))
-        return sum(
-            1
-            for v in self._votes
-            if v.votable_type == votable_type and v.votable_id == votable_uuid
-        )
 
     async def find_by_user_and_votables(
         self,

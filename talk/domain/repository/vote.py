@@ -58,23 +58,6 @@ class VoteRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: Union[PostId, CommentId],
-    ) -> List[Vote]:
-        """Find all votes on a specific item.
-
-        Args:
-            votable_type: Type of item (post or comment)
-            votable_id: ID of the item
-
-        Returns:
-            List of votes on the item
-        """
-        pass
-
-    @abstractmethod
     async def save(self, vote: Vote) -> Vote:
         """Save a vote (create).
 
@@ -119,23 +102,6 @@ class VoteRepository(ABC):
 
         Returns:
             True if a vote was deleted, False if no vote existed
-        """
-        pass
-
-    @abstractmethod
-    async def count_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: Union[PostId, CommentId],
-    ) -> int:
-        """Count votes on a specific item.
-
-        Args:
-            votable_type: Type of item (post or comment)
-            votable_id: ID of the item
-
-        Returns:
-            Number of votes
         """
         pass
 

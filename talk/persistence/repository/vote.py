@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Sequence, Union
 
-from sqlalchemy import and_, delete, func, insert, select
+from sqlalchemy import and_, delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.domain.model import Vote
@@ -54,21 +54,6 @@ class PostgresVoteRepository(VoteRepository):
         result = await self.session.execute(stmt)
         return [row_to_vote(row._asdict()) for row in result.fetchall()]
 
-    async def find_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: Union[PostId, CommentId],
-    ) -> List[Vote]:
-        """Find all votes on a specific item."""
-        stmt = select(votes_table).where(
-            and_(
-                votes_table.c.votable_type == votable_type.value,
-                votes_table.c.votable_id == votable_id,
-            )
-        )
-        result = await self.session.execute(stmt)
-        return [row_to_vote(row._asdict()) for row in result.fetchall()]
-
     async def save(self, vote: Vote) -> Vote:
         """Save a vote (create)."""
         vote_dict = vote_to_dict(vote)
@@ -100,25 +85,6 @@ class PostgresVoteRepository(VoteRepository):
         result = await self.session.execute(stmt)
         await self.session.flush()
         return result.rowcount > 0  # type: ignore[attr-defined]
-
-    async def count_by_votable(
-        self,
-        votable_type: VotableType,
-        votable_id: Union[PostId, CommentId],
-    ) -> int:
-        """Count votes on a specific item."""
-        stmt = (
-            select(func.count())
-            .select_from(votes_table)
-            .where(
-                and_(
-                    votes_table.c.votable_type == votable_type.value,
-                    votes_table.c.votable_id == votable_id,
-                )
-            )
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar() or 0
 
     async def find_by_user_and_votables(
         self,

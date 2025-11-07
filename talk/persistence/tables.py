@@ -234,7 +234,6 @@ votes_table = Table(
 )
 
 Index("idx_votes_user_id", votes_table.c.user_id)
-Index("idx_votes_votable", votes_table.c.votable_type, votes_table.c.votable_id)
 
 # ============================================================================
 # INVITES TABLE (Multi-provider)
