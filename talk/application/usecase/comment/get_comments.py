@@ -23,6 +23,7 @@ class CommentItem(BaseModel):
     path: str | None
     points: int
     created_at: datetime
+    content_updated_at: datetime
     has_voted: bool
 
 
@@ -116,6 +117,7 @@ class GetCommentsUseCase:
                 path=comment.path,
                 points=comment.points,
                 created_at=comment.created_at,
+                content_updated_at=comment.content_updated_at,
                 has_voted=user_votes.get(str(comment.id), False),
             )
             for comment in comments
