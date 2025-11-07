@@ -16,6 +16,7 @@ from talk.domain.value import CommentId, PostId, UserId, VotableType
 from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
 from talk.persistence.repository.comment import CommentRepository
+from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -41,6 +42,7 @@ class TestRemoveVoteUseCase:
         now = datetime.now()
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -141,6 +143,7 @@ class TestRemoveVoteUseCase:
         now = datetime.now()
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),

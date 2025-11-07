@@ -9,7 +9,7 @@ from typing import Optional
 from pydantic import Field, model_validator
 
 from talk.domain.model.common import DomainModel
-from talk.domain.value import PostId, TagName, UserId
+from talk.domain.value import PostId, Slug, TagName, UserId
 from talk.domain.value.types import Handle
 
 
@@ -22,9 +22,11 @@ class Post(DomainModel):
     - Hybrid posts: Have both URL and text
 
     Posts are categorized by 1-5 tags for discovery and filtering.
+    Posts are identified by unique slugs for SEO-friendly URLs.
     """
 
     id: PostId
+    slug: Slug
     title: str = Field(min_length=1, max_length=300)
     author_id: UserId
     author_handle: Handle

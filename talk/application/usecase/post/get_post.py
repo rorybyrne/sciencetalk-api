@@ -7,21 +7,33 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from talk.domain.repository import PostRepository, VoteRepository
-from talk.domain.value import PostId, UserId, VotableType
+from talk.domain.value import PostId, Slug, UserId, VotableType
 from talk.domain.value.types import Handle
 
 
 class GetPostRequest(BaseModel):
-    """Get post request."""
+    """Get post request.
 
-    post_id: str  # UUID string
+    Accepts either post_id (UUID) or slug for lookup.
+    """
+
+    post_id: str | None = None  # UUID string (legacy)
+    slug: str | None = None  # URL slug (preferred)
     user_id: str | None = None  # Current user ID (if authenticated)
+
+    def model_post_init(self, __context):
+        """Validate that either post_id or slug is provided."""
+        if not self.post_id and not self.slug:
+            raise ValueError("Either post_id or slug must be provided")
+        if self.post_id and self.slug:
+            raise ValueError("Provide either post_id or slug, not both")
 
 
 class GetPostResponse(BaseModel):
     """Get post response."""
 
     post_id: str
+    slug: str
     title: str
     tag_names: list[str]
     author_id: str
@@ -54,14 +66,19 @@ class GetPostUseCase:
     async def execute(self, request: GetPostRequest) -> Optional[GetPostResponse]:
         """Execute get post flow.
 
+        Supports lookups by both UUID (legacy) and slug (preferred).
+
         Args:
-            request: Get post request with post ID and optional user ID
+            request: Get post request with post ID or slug, and optional user ID
 
         Returns:
             Post details if found, None otherwise
         """
-        # Find post by ID
-        post = await self.post_repository.find_by_id(PostId(UUID(request.post_id)))
+        # Find post by slug (preferred) or ID (legacy)
+        if request.slug:
+            post = await self.post_repository.find_by_slug(Slug(request.slug))
+        else:
+            post = await self.post_repository.find_by_id(PostId(UUID(request.post_id)))
 
         if not post:
             return None
@@ -82,6 +99,7 @@ class GetPostUseCase:
 
         return GetPostResponse(
             post_id=str(post.id),
+            slug=str(post.slug),
             title=post.title,
             tag_names=[tag.root for tag in post.tag_names],
             author_id=str(post.author_id),

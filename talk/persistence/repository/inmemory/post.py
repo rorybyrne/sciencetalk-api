@@ -5,7 +5,7 @@ from typing import Optional
 
 from talk.domain.model.post import Post
 from talk.domain.repository.post import PostRepository, PostSortOrder
-from talk.domain.value import PostId, UserId
+from talk.domain.value import PostId, Slug, UserId
 from talk.domain.value.types import TagName
 
 
@@ -18,6 +18,17 @@ class InMemoryPostRepository(PostRepository):
     async def find_by_id(self, post_id: PostId) -> Optional[Post]:
         """Find a post by ID."""
         return self._posts.get(post_id)
+
+    async def find_by_slug(self, slug: Slug) -> Optional[Post]:
+        """Find a post by slug (excludes deleted posts)."""
+        for post in self._posts.values():
+            if post.slug == slug and post.deleted_at is None:
+                return post
+        return None
+
+    async def slug_exists(self, slug: Slug) -> bool:
+        """Check if a slug exists (globally - includes deleted posts)."""
+        return any(post.slug == slug for post in self._posts.values())
 
     async def find_all(
         self,
@@ -123,6 +134,7 @@ class InMemoryPostRepository(PostRepository):
             # Note: Votes don't update timestamps
             self._posts[post_id] = Post(
                 id=post.id,
+                slug=post.slug,
                 title=post.title,
                 tag_names=post.tag_names,
                 author_id=post.author_id,
@@ -145,6 +157,7 @@ class InMemoryPostRepository(PostRepository):
             # Note: Votes don't update timestamps
             self._posts[post_id] = Post(
                 id=post.id,
+                slug=post.slug,
                 title=post.title,
                 tag_names=post.tag_names,
                 author_id=post.author_id,
@@ -168,6 +181,7 @@ class InMemoryPostRepository(PostRepository):
         # Create updated post (since posts are immutable)
         updated_post = Post(
             id=post.id,
+            slug=post.slug,
             title=post.title,
             tag_names=post.tag_names,
             author_id=post.author_id,

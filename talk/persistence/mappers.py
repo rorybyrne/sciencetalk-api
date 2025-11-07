@@ -15,6 +15,7 @@ from talk.domain.value import (
     InviteStatus,
     InviteToken,
     PostId,
+    Slug,
     TagId,
     TagName,
     UserId,
@@ -145,6 +146,7 @@ def row_to_post(row: Dict[str, Any], tag_names: list[str] | None = None) -> Post
 
     return Post(
         id=PostId(UUID(row["id"]) if isinstance(row["id"], str) else row["id"]),
+        slug=Slug(row["slug"]),
         title=row["title"],
         author_id=UserId(
             UUID(row["author_id"])

@@ -109,6 +109,27 @@ class InviteToken(RootValueObject[str]):
         return v
 
 
+class Slug(RootValueObject[str]):
+    """URL-safe slug for posts.
+
+    Must be lowercase, alphanumeric with hyphens, 1-100 characters.
+    Examples: 'new-crispr-technique', 'paper-review-nature-2025'
+    """
+
+    @field_validator("root")
+    @classmethod
+    def validate_slug_format(cls, v: str) -> str:
+        """Validate slug format."""
+        if not re.match(r"^[a-z0-9]+(?:-[a-z0-9]+)*$", v):
+            raise ValueError(
+                "Slug must be lowercase alphanumeric with hyphens, "
+                "no leading/trailing hyphens or consecutive hyphens"
+            )
+        if len(v) < 1 or len(v) > 100:
+            raise ValueError("Slug must be 1-100 characters")
+        return v
+
+
 class OAuthProviderInfo(ValueObject):
     """OAuth provider information.
 

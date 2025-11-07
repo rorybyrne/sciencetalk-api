@@ -13,6 +13,7 @@ from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.vote import VoteRepository
 from talk.persistence.repository.post import PostRepository
 from talk.persistence.repository.comment import CommentRepository
+from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
 # Unit test fixture - everything mocked, no docker needed
@@ -35,6 +36,7 @@ class TestUpvotePost:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -44,7 +46,8 @@ class TestUpvotePost:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -89,6 +92,7 @@ class TestUpvotePost:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -98,7 +102,8 @@ class TestUpvotePost:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -135,7 +140,7 @@ class TestUpvoteComment:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -164,6 +169,7 @@ class TestRemoveVote:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -173,7 +179,8 @@ class TestRemoveVote:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -209,6 +216,7 @@ class TestRemoveVote:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -218,7 +226,8 @@ class TestRemoveVote:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)

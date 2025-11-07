@@ -10,6 +10,7 @@ from talk.domain.service import PostService
 from talk.domain.value import PostId, UserId
 from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
+from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -31,6 +32,7 @@ class TestIncrementCommentCount:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -89,6 +91,7 @@ class TestUpdateText:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -141,6 +144,7 @@ class TestUpdateText:
         now = datetime.now()
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),

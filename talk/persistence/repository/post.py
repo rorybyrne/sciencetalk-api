@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from talk.config import Settings
 from talk.domain.model import Post
 from talk.domain.repository.post import PostRepository, PostSortOrder
-from talk.domain.value import PostId, TagName, UserId
+from talk.domain.value import PostId, Slug, TagName, UserId
 from talk.persistence.mappers import post_to_dict, row_to_post
 from talk.persistence.tables import post_tags_table, posts_table, tags_table
 
@@ -75,6 +75,47 @@ class PostgresPostRepository(PostRepository):
             tag_names = post_tag_map.get(post_id, [])
 
             return row_to_post(row._asdict(), tag_names=tag_names)
+
+    async def find_by_slug(self, slug: Slug) -> Optional[Post]:
+        """Find a post by slug.
+
+        Note: Returns None if post is deleted (even though slug is globally unique).
+        """
+        with logfire.span("post_repository.find_by_slug", slug=str(slug)):
+            stmt = select(posts_table).where(
+                posts_table.c.slug == str(slug),
+                posts_table.c.deleted_at.is_(None),  # Exclude deleted for API access
+            )
+            result = await self.session.execute(stmt)
+            row = result.fetchone()
+
+            if not row:
+                logfire.warn("Post not found by slug or is deleted", slug=str(slug))
+                return None
+
+            # Fetch tags for this post
+            post_tag_map = await self._fetch_tags_for_posts([row.id])
+            tag_names = post_tag_map.get(row.id, [])
+
+            return row_to_post(row._asdict(), tag_names=tag_names)
+
+    async def slug_exists(self, slug: Slug) -> bool:
+        """Check if a slug exists (globally - includes deleted posts)."""
+        with logfire.span("post_repository.slug_exists", slug=str(slug)):
+            stmt = (
+                select(func.count())
+                .select_from(posts_table)
+                .where(
+                    posts_table.c.slug == str(slug),
+                    # NOTE: Check ALL posts (including deleted) for global uniqueness
+                )
+            )
+            result = await self.session.execute(stmt)
+            count = result.scalar()
+            exists = (count or 0) > 0
+
+            logfire.debug("Slug existence check", slug=str(slug), exists=exists)
+            return exists
 
     async def find_all(
         self,

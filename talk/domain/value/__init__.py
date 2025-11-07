@@ -16,6 +16,7 @@ from talk.domain.value.types import (
     InviteStatus,
     InviteToken,
     OAuthProviderInfo,
+    Slug,
     TagName,
     VotableType,
     VoteType,
@@ -32,6 +33,7 @@ __all__ = [
     "TagId",
     # Types
     "TagName",
+    "Slug",
     "VoteType",
     "VotableType",
     "InviteStatus",

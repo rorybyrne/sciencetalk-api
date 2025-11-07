@@ -219,14 +219,17 @@ async def update_post(
         )
 
 
-@router.get("/{post_id}", response_model=GetPostResponse)
-async def get_post(
+@router.get("/by-id/{post_id}", response_model=GetPostResponse)
+async def get_post_by_id(
     post_id: UUID,
     get_post_use_case: FromDishka[GetPostUseCase],
     get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
     auth_token: str | None = Cookie(default=None),
 ) -> GetPostResponse:
-    """Get a post by ID.
+    """Get a post by UUID.
+
+    Legacy endpoint for UUID-based lookups. Useful for API integrations
+    that work with post IDs directly.
 
     Args:
         post_id: Post UUID
@@ -238,7 +241,7 @@ async def get_post(
         Post details
 
     Raises:
-        HTTPException: If post not found or invalid UUID
+        HTTPException: If post not found
     """
     # Get current user ID if authenticated
     user_id = None
@@ -259,7 +262,7 @@ async def get_post(
         )
 
         if not post:
-            logfire.warn("Post not found", post_id=str(post_id))
+            logfire.warn("Post not found by ID", post_id=str(post_id))
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Post not found",
@@ -271,8 +274,68 @@ async def get_post(
         raise
     except Exception as e:
         logfire.error(
-            "Unexpected error fetching post", post_id=str(post_id), error=str(e)
+            "Unexpected error fetching post by ID", post_id=str(post_id), error=str(e)
         )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch post",
+        )
+
+
+@router.get("/{slug}", response_model=GetPostResponse)
+async def get_post_by_slug(
+    slug: str,
+    get_post_use_case: FromDishka[GetPostUseCase],
+    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    auth_token: str | None = Cookie(default=None),
+) -> GetPostResponse:
+    """Get a post by slug.
+
+    Primary endpoint for accessing posts via SEO-friendly URLs.
+
+    Args:
+        slug: Post slug (e.g., 'new-crispr-technique-improves-accuracy')
+        get_post_use_case: Get post use case from DI
+        get_current_user_use_case: Get current user use case from DI
+        auth_token: JWT token from cookie (optional)
+
+    Returns:
+        Post details
+
+    Raises:
+        HTTPException: If post not found
+    """
+    # Get current user ID if authenticated
+    user_id = None
+    if auth_token:
+        try:
+            user = await get_current_user_use_case.execute(
+                GetCurrentUserRequest(token=auth_token)
+            )
+            if user:
+                user_id = user.user_id
+        except JWTError:
+            # Invalid token, treat as unauthenticated
+            pass
+
+    try:
+        post = await get_post_use_case.execute(
+            GetPostRequest(slug=slug, user_id=user_id)
+        )
+
+        if not post:
+            logfire.warn("Post not found by slug", slug=slug)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found",
+            )
+
+        return post
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logfire.error("Unexpected error fetching post by slug", slug=slug, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch post",

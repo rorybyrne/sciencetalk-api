@@ -14,6 +14,7 @@ from talk.domain.service import CommentService, PostService
 from talk.domain.value import PostId, UserId
 from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
+from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -43,6 +44,7 @@ class TestCreateCommentUseCase:
 
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="author.bsky.social"),
@@ -52,7 +54,8 @@ class TestCreateCommentUseCase:
             points=1,
             comment_count=5,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)

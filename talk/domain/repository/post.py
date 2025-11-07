@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional
 
 from talk.domain.model.post import Post
-from talk.domain.value import PostId, UserId
+from talk.domain.value import PostId, Slug, UserId
 from talk.domain.value.types import TagName
 
 
@@ -33,6 +33,30 @@ class PostRepository(ABC):
 
         Returns:
             The post if found, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def find_by_slug(self, slug: Slug) -> Optional[Post]:
+        """Find a post by slug.
+
+        Args:
+            slug: The post's URL slug
+
+        Returns:
+            The post if found and not deleted, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def slug_exists(self, slug: Slug) -> bool:
+        """Check if a slug is already in use by a non-deleted post.
+
+        Args:
+            slug: The slug to check
+
+        Returns:
+            True if slug exists, False otherwise
         """
         pass
 

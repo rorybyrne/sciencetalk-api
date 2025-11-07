@@ -10,6 +10,7 @@ from talk.domain.repository.post import PostSortOrder
 from talk.domain.value import PostId, UserId
 from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.inmemory.post import InMemoryPostRepository
+from tests.conftest import make_slug
 
 
 class TestPostHotSorting:
@@ -22,8 +23,10 @@ class TestPostHotSorting:
         repo = InMemoryPostRepository()
 
         # Old post with 2 points
+        old_post_id = PostId(uuid4())
         old_post = Post(
-            id=PostId(uuid4()),
+            id=old_post_id,
+            slug=make_slug("Old Post", old_post_id),
             title="Old Post",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="old.bsky.social"),
@@ -34,8 +37,10 @@ class TestPostHotSorting:
         )
 
         # New post with 2 points
+        new_post_id = PostId(uuid4())
         new_post = Post(
-            id=PostId(uuid4()),
+            id=new_post_id,
+            slug=make_slug("New Post", new_post_id),
             title="New Post",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="new.bsky.social"),
@@ -64,8 +69,10 @@ class TestPostHotSorting:
         base_time = datetime.now() - timedelta(hours=5)
 
         # Low points post
+        low_points_id = PostId(uuid4())
         low_points = Post(
-            id=PostId(uuid4()),
+            id=low_points_id,
+            slug=make_slug("Low Points", low_points_id),
             title="Low Points",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="low.bsky.social"),
@@ -76,8 +83,10 @@ class TestPostHotSorting:
         )
 
         # High points post
+        high_points_id = PostId(uuid4())
         high_points = Post(
-            id=PostId(uuid4()),
+            id=high_points_id,
+            slug=make_slug("High Points", high_points_id),
             title="High Points",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="high.bsky.social"),
@@ -105,8 +114,10 @@ class TestPostHotSorting:
         repo = InMemoryPostRepository()
 
         # Very old post with many points
+        old_popular_id = PostId(uuid4())
         old_popular = Post(
-            id=PostId(uuid4()),
+            id=old_popular_id,
+            slug=make_slug("Old Popular", old_popular_id),
             title="Old Popular",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="oldpop.bsky.social"),
@@ -117,8 +128,10 @@ class TestPostHotSorting:
         )
 
         # Recent post with moderate points
+        recent_moderate_id = PostId(uuid4())
         recent_moderate = Post(
-            id=PostId(uuid4()),
+            id=recent_moderate_id,
+            slug=make_slug("Recent Moderate", recent_moderate_id),
             title="Recent Moderate",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="recmod.bsky.social"),
@@ -129,8 +142,10 @@ class TestPostHotSorting:
         )
 
         # Very recent post with few points
+        very_recent_id = PostId(uuid4())
         very_recent = Post(
-            id=PostId(uuid4()),
+            id=very_recent_id,
+            slug=make_slug("Very Recent", very_recent_id),
             title="Very Recent",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="veryrecent.bsky.social"),
@@ -166,8 +181,10 @@ class TestPostHotSorting:
         repo = InMemoryPostRepository()
 
         # Create older popular posts
+        popular_post_id = PostId(uuid4())
         popular_post = Post(
-            id=PostId(uuid4()),
+            id=popular_post_id,
+            slug=make_slug("Popular Post", popular_post_id),
             title="Popular Post",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="popular.bsky.social"),
@@ -178,8 +195,10 @@ class TestPostHotSorting:
         )
 
         # Brand new post with just initial point
+        brand_new_id = PostId(uuid4())
         brand_new = Post(
-            id=PostId(uuid4()),
+            id=brand_new_id,
+            slug=make_slug("Brand New", brand_new_id),
             title="Brand New",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="new.bsky.social"),
@@ -208,8 +227,10 @@ class TestPostHotSorting:
         # Arrange
         repo = InMemoryPostRepository()
 
+        bio_post_id = PostId(uuid4())
         bio_post = Post(
-            id=PostId(uuid4()),
+            id=bio_post_id,
+            slug=make_slug("Biology Post", bio_post_id),
             title="Biology Post",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="bio.bsky.social"),
@@ -219,8 +240,10 @@ class TestPostHotSorting:
             created_at=datetime.now() - timedelta(hours=1),
         )
 
+        chem_post_id = PostId(uuid4())
         chem_post = Post(
-            id=PostId(uuid4()),
+            id=chem_post_id,
+            slug=make_slug("Chemistry Post", chem_post_id),
             title="Chemistry Post",
             author_id=UserId(uuid4()),
             author_handle=Handle(root="chem.bsky.social"),

@@ -111,6 +111,7 @@ posts_table = Table(
     "posts",
     metadata,
     Column("id", UUID, primary_key=True, server_default="uuid_generate_v4()"),
+    Column("slug", String(100), nullable=False),
     Column("title", String(300), nullable=False),
     Column("url", Text, nullable=True),
     Column("text", Text, nullable=True),
@@ -142,9 +143,12 @@ posts_table = Table(
     ),
 )
 
+Index("idx_posts_slug", posts_table.c.slug)
 Index("idx_posts_created_at", posts_table.c.created_at.desc())
 Index("idx_posts_author_id", posts_table.c.author_id)
 Index("idx_posts_deleted_at", posts_table.c.deleted_at)
+# Unique index for slugs (globally unique, even for deleted posts)
+# Created in migration with: postgresql_where=sa.text("slug IS NOT NULL")
 
 # ============================================================================
 # POST_TAGS TABLE (junction table for many-to-many relationship)

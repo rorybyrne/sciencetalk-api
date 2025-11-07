@@ -19,7 +19,7 @@ from talk.domain.value.types import Handle
 class UpdatePostRequest(BaseModel):
     """Update post request."""
 
-    post_id: str  # UUID string
+    post_id: str  # Post UUID
     user_id: str  # Current user ID (must be author)
     text: str | None  # New text content (None to clear)
 
@@ -28,6 +28,7 @@ class UpdatePostResponse(BaseModel):
     """Update post response."""
 
     post_id: str
+    slug: str
     title: str
     tag_names: list[str]
     author_id: str
@@ -106,12 +107,13 @@ class UpdatePostUseCase:
         vote = await self.vote_repository.find_by_user_and_votable(
             user_id=user_id,
             votable_type=VotableType.POST,
-            votable_id=post_id,
+            votable_id=post.id,
         )
         has_voted = vote is not None
 
         return UpdatePostResponse(
             post_id=str(updated_post.id),
+            slug=str(updated_post.slug),
             title=updated_post.title,
             tag_names=[tag.root for tag in updated_post.tag_names],
             author_id=str(updated_post.author_id),

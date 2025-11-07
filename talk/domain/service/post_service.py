@@ -1,11 +1,13 @@
 """Post domain service."""
 
+import re
+
 import logfire
 from datetime import datetime
 
 from talk.domain.model.post import Post
 from talk.domain.repository import PostRepository
-from talk.domain.value import PostId
+from talk.domain.value import PostId, Slug
 
 from .base import Service
 
@@ -53,6 +55,30 @@ class PostService(Service):
                 logfire.info("Post found", post_id=str(post_id), title=post.title)
             else:
                 logfire.warn("Post not found", post_id=str(post_id))
+
+            return post
+
+    async def get_post_by_slug(self, slug: Slug) -> Post | None:
+        """Get a post by slug.
+
+        Args:
+            slug: Post slug
+
+        Returns:
+            Post if found, None otherwise
+        """
+        with logfire.span("post_service.get_post_by_slug", slug=str(slug)):
+            post = await self.post_repository.find_by_slug(slug)
+
+            if post:
+                logfire.info(
+                    "Post found by slug",
+                    slug=str(slug),
+                    post_id=str(post.id),
+                    title=post.title,
+                )
+            else:
+                logfire.warn("Post not found by slug", slug=str(slug))
 
             return post
 
@@ -148,3 +174,79 @@ class PostService(Service):
                 )
 
             return updated
+
+    async def generate_unique_slug(self, title: str, post_id: PostId) -> Slug:
+        """Generate a unique slug from a title.
+
+        Handles collisions by appending numeric suffixes.
+
+        Args:
+            title: Post title to slugify
+            post_id: Post ID (used for fallback if title produces empty slug)
+
+        Returns:
+            Unique slug for the post
+        """
+        with logfire.span(
+            "post_service.generate_unique_slug",
+            post_id=str(post_id),
+            title=title,
+        ):
+            base_slug_str = self._slugify(title)
+
+            # Fallback for empty/invalid titles
+            if not base_slug_str:
+                fallback = f"post-{post_id.hex[:8]}"
+                logfire.info(
+                    "Using fallback slug for empty title",
+                    post_id=str(post_id),
+                    slug=fallback,
+                )
+                return Slug(fallback)
+
+            # Handle collisions with numeric suffix
+            slug_str = base_slug_str
+            counter = 1
+            while await self.post_repository.slug_exists(Slug(slug_str)):
+                suffix = f"-{counter}"
+                # Ensure we don't exceed 100 chars with suffix
+                slug_str = base_slug_str[: 100 - len(suffix)] + suffix
+                counter += 1
+                logfire.debug(
+                    "Slug collision, trying with suffix",
+                    base_slug=base_slug_str,
+                    attempt=slug_str,
+                    counter=counter,
+                )
+
+            slug = Slug(slug_str)
+            logfire.info(
+                "Generated unique slug",
+                post_id=str(post_id),
+                slug=str(slug),
+                had_collision=counter > 1,
+            )
+            return slug
+
+    @staticmethod
+    def _slugify(title: str) -> str:
+        """Convert title to URL-safe slug format.
+
+        - Converts to lowercase
+        - Replaces non-alphanumeric chars with hyphens
+        - Removes consecutive hyphens
+        - Strips leading/trailing hyphens
+        - Truncates to 100 characters
+
+        Args:
+            title: Title to slugify
+
+        Returns:
+            URL-safe slug string (may be empty if title has no valid chars)
+        """
+        # Convert to lowercase and replace non-alphanumeric with hyphens
+        slug = re.sub(r"[^a-z0-9]+", "-", title.lower())
+        # Remove consecutive hyphens
+        slug = re.sub(r"-+", "-", slug)
+        # Strip leading/trailing hyphens and truncate
+        return slug.strip("-")[:100]

@@ -16,6 +16,7 @@ class PostListItem(BaseModel):
     """Post list item in response."""
 
     post_id: str
+    slug: str
     title: str
     tag_names: list[str]
     author_id: str
@@ -113,6 +114,7 @@ class ListPostsUseCase:
             post_items = [
                 PostListItem(
                     post_id=str(post.id),
+                    slug=str(post.slug),
                     title=post.title,
                     tag_names=[tag.root for tag in post.tag_names],
                     author_id=str(post.author_id),

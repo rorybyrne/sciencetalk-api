@@ -28,6 +28,7 @@ class CreatePostResponse(BaseModel):
     """Create post response."""
 
     post_id: str
+    slug: str
     title: str
     tag_names: list[str]
     points: int
@@ -54,8 +55,9 @@ class CreatePostUseCase:
 
         Steps:
         1. Validate that all tags exist (via TagService)
-        2. Create Post entity (validation happens in domain model)
-        3. Save post (via PostService)
+        2. Generate unique slug from title (via PostService)
+        3. Create Post entity (validation happens in domain model)
+        4. Save post (via PostService)
 
         Args:
             request: Create post request
@@ -81,10 +83,18 @@ class CreatePostUseCase:
             except ValueError as e:
                 raise DomainError(str(e))
 
+            # Generate unique slug from title
+            post_id = PostId(uuid4())
+            slug = await self.post_service.generate_unique_slug(request.title, post_id)
+            logfire.info(
+                "Generated slug for post", slug=str(slug), post_id=str(post_id)
+            )
+
             # Create post entity (Pydantic validation will enforce content rules)
             now = datetime.now()
             post = Post(
-                id=PostId(uuid4()),
+                id=post_id,
+                slug=slug,
                 title=request.title,
                 author_id=UserId(UUID(request.author_id)),
                 author_handle=request.author_handle,
@@ -102,10 +112,15 @@ class CreatePostUseCase:
             # Save post via service
             saved_post = await self.post_service.save_post(post)
 
-            logfire.info("Post created successfully", post_id=str(saved_post.id))
+            logfire.info(
+                "Post created successfully",
+                post_id=str(saved_post.id),
+                slug=str(saved_post.slug),
+            )
 
             return CreatePostResponse(
                 post_id=str(saved_post.id),
+                slug=str(saved_post.slug),
                 title=saved_post.title,
                 tag_names=[tag.root for tag in saved_post.tag_names],
                 points=saved_post.points,

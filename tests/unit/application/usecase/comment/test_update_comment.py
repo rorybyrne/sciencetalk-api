@@ -21,6 +21,7 @@ from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.comment import CommentRepository
 from talk.persistence.repository.post import PostRepository
 from talk.persistence.repository.vote import VoteRepository
+from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
 # Unit test fixture
@@ -53,6 +54,7 @@ class TestUpdateCommentUseCase:
         # Create post
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -62,7 +64,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -79,7 +82,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -126,6 +129,7 @@ class TestUpdateCommentUseCase:
         # Create post
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -135,7 +139,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -152,7 +157,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -191,6 +196,7 @@ class TestUpdateCommentUseCase:
         # Create post
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -200,7 +206,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -217,7 +224,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=datetime.now(),  # Deleted
         )
         await comment_repo.save(comment)
@@ -253,6 +260,7 @@ class TestUpdateCommentUseCase:
         # Create post (but no comment)
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -262,7 +270,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post)
@@ -309,7 +318,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -348,6 +357,7 @@ class TestUpdateCommentUseCase:
         # Create deleted post
         post = Post(
             id=post_id,
+            slug=make_slug("Test Post", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -357,7 +367,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=datetime.now(),  # Deleted
         )
         await post_repo.save(post)
@@ -374,7 +385,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
@@ -416,6 +427,7 @@ class TestUpdateCommentUseCase:
         # Create first post
         post1 = Post(
             id=post_id,
+            slug=make_slug("Test Post 1", post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -425,7 +437,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post1)
@@ -433,6 +446,7 @@ class TestUpdateCommentUseCase:
         # Create second post
         post2 = Post(
             id=different_post_id,
+            slug=make_slug("Test Post 2", different_post_id),
             tag_names=[TagName("discussion")],
             author_id=UserId(uuid4()),
             author_handle=Handle(root="post_author.bsky.social"),
@@ -442,7 +456,8 @@ class TestUpdateCommentUseCase:
             points=1,
             comment_count=0,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            comments_updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await post_repo.save(post2)
@@ -459,7 +474,7 @@ class TestUpdateCommentUseCase:
             path="1",
             points=1,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
+            content_updated_at=datetime.now(),
             deleted_at=None,
         )
         await comment_repo.save(comment)
