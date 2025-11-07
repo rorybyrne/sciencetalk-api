@@ -114,6 +114,9 @@ class TestCreateInvitesUseCase:
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
+        # Enable quota enforcement for this test
+        settings.invitations.enforce_quota = True
+
         # Create user with quota of 5
         user = await self._create_test_user(
             user_repo, "inviter.bsky.social", invite_quota=5
@@ -343,6 +346,9 @@ class TestCreateInvitesUseCase:
         user_identity_service = await unit_env.get(UserIdentityService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
+
+        # Enable quota enforcement for this test
+        settings.invitations.enforce_quota = True
 
         # Create user with quota of 2
         user = await self._create_test_user(

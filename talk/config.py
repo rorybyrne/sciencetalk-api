@@ -51,6 +51,10 @@ class AuthSettings(BaseModel):
 class InvitationSettings(BaseModel):
     """Invitation configuration."""
 
+    # Whether to enforce invite quotas
+    # Set to False to allow unlimited invites for all users (no quota limit)
+    enforce_quota: bool = False
+
     # List of handles that can create accounts without invites and have unlimited invites
     # These are the founding/seed users who bootstrap the community
     # Format: provider handle (e.g., "alice.bsky.social", "bob@twitter.com")
@@ -108,6 +112,22 @@ class ObservabilitySettings(BaseModel):
     send_to_logfire: bool | None = None
 
 
+class RankingSettings(BaseModel):
+    """Content ranking configuration."""
+
+    # Gravity factor for time-decay ranking algorithm
+    # Higher values = faster decay (more emphasis on recency)
+    # Lower values = slower decay (high-quality content stays visible longer)
+    # HN uses 1.8 as standard
+    gravity: float = 1.8
+
+    # Time offset in hours added to post age before applying decay
+    # Lower values = better visibility for new posts with upvotes
+    # Higher values = more stability, less volatility
+    # HN uses 2, we use 1 for better new post visibility
+    time_offset: float = 1.0
+
+
 class Settings(BaseSettings):
     """Application settings.
 
@@ -159,6 +179,7 @@ class Settings(BaseSettings):
     )  # Overwritten in validator
     invitations: InvitationSettings = InvitationSettings()
     observability: ObservabilitySettings = ObservabilitySettings()
+    ranking: RankingSettings = RankingSettings()
 
     @model_validator(mode="after")
     def initialize_api_settings(self) -> "Settings":

@@ -106,8 +106,11 @@ class CreateInvitesUseCase(BaseUseCase):
             # Check if user is a seed user (unlimited invites)
             is_seed_user = self._is_seed_user(inviter.handle)
 
-            # Check quota (seed users have unlimited quota)
-            if not is_seed_user:
+            # Check if quota enforcement is enabled
+            enforce_quota = self.settings.invitations.enforce_quota
+
+            # Check quota (seed users and disabled quota enforcement bypass quota)
+            if enforce_quota and not is_seed_user:
                 available_quota = await self.invite_service.get_available_quota(
                     inviter.invite_quota, inviter_id
                 )
@@ -123,6 +126,12 @@ class CreateInvitesUseCase(BaseUseCase):
                         f"Insufficient invite quota. Available: {available_quota}, "
                         f"Requested: {len(request.invitees)}"
                     )
+            elif not enforce_quota:
+                logfire.info(
+                    "Quota enforcement disabled - unlimited invites",
+                    inviter_id=str(inviter_id),
+                    invite_count=len(request.invitees),
+                )
             else:
                 logfire.info(
                     "Seed user creating invites - unlimited quota",
@@ -189,10 +198,13 @@ class CreateInvitesUseCase(BaseUseCase):
                         error=str(e),
                     )
 
-            # Calculate remaining quota (seed users have "unlimited" represented as 999999)
+            # Calculate remaining quota
             if is_seed_user:
-                remaining_quota = 999999  # Effectively unlimited
+                # Seed users have unlimited quota
+                remaining_quota = 999999
             else:
+                # Return actual available quota (whether enforced or not)
+                # When enforcement is disabled, this is informational only
                 remaining_quota = await self.invite_service.get_available_quota(
                     inviter.invite_quota, inviter_id
                 )

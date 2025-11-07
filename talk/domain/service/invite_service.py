@@ -246,7 +246,8 @@ class InviteService(Service):
     async def get_available_quota(self, user_quota: int, inviter_id: UserId) -> int:
         """Calculate available invite quota for a user.
 
-        Domain logic: available quota = user's total quota - pending invites
+        Domain logic: available quota = user's total quota - total invites sent
+        (counts both pending and accepted invites)
 
         Args:
             user_quota: User's total invite quota
@@ -260,13 +261,16 @@ class InviteService(Service):
             user_quota=user_quota,
             inviter_id=str(inviter_id),
         ):
-            pending_count = await self.get_pending_count(inviter_id)
-            available = max(0, user_quota - pending_count)
+            # Count all invites (both pending and accepted)
+            total_invites = await self.invite_repository.count_by_inviter(
+                inviter_id, status=None
+            )
+            available = max(0, user_quota - total_invites)
             logfire.info(
                 "Available quota calculated",
                 inviter_id=str(inviter_id),
                 user_quota=user_quota,
-                pending_count=pending_count,
+                total_invites=total_invites,
                 available=available,
             )
             return available

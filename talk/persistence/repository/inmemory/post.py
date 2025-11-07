@@ -41,8 +41,20 @@ class InMemoryPostRepository(PostRepository):
         # Sort
         if sort == PostSortOrder.RECENT:
             posts.sort(key=lambda p: p.created_at, reverse=True)
-        else:  # PostSortOrder.ACTIVE
+        elif sort == PostSortOrder.ACTIVE:
             posts.sort(key=lambda p: p.comments_updated_at, reverse=True)
+        elif sort == PostSortOrder.HOT:
+            # Time-decay ranking: points / (age_hours + offset)^gravity
+            # No -1 penalty: new posts are visible but don't dominate
+            gravity = 1.8  # Default gravity for in-memory repo
+            time_offset = 1.0  # Default offset for in-memory repo
+
+            def calculate_score(post: Post) -> float:
+                age = datetime.now() - post.created_at
+                age_hours = age.total_seconds() / 3600
+                return post.points / ((age_hours + time_offset) ** gravity)
+
+            posts.sort(key=calculate_score, reverse=True)
 
         # Paginate
         return posts[offset : offset + limit]

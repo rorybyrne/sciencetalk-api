@@ -1,13 +1,14 @@
 """PostgreSQL implementation of Post repository."""
 
-import logfire
 from collections import defaultdict
 from typing import List, Optional
 from uuid import UUID
 
+import logfire
 from sqlalchemy import delete, desc, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from talk.config import Settings
 from talk.domain.model import Post
 from talk.domain.repository.post import PostRepository, PostSortOrder
 from talk.domain.value import PostId, TagName, UserId
@@ -18,13 +19,15 @@ from talk.persistence.tables import post_tags_table, posts_table, tags_table
 class PostgresPostRepository(PostRepository):
     """PostgreSQL implementation of PostRepository."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         """Initialize repository with database session.
 
         Args:
             session: SQLAlchemy async session
+            settings: Application settings
         """
         self.session = session
+        self.settings = settings
 
     async def _fetch_tags_for_posts(
         self, post_ids: list[UUID]
@@ -110,8 +113,25 @@ class PostgresPostRepository(PostRepository):
             # Sort order
             if sort == PostSortOrder.RECENT:
                 stmt = stmt.order_by(desc(posts_table.c.created_at))
-            else:  # ACTIVE - sort by most recent comment
+            elif sort == PostSortOrder.ACTIVE:
                 stmt = stmt.order_by(desc(posts_table.c.comments_updated_at))
+            elif sort == PostSortOrder.HOT:
+                # Time-decay ranking: points / (age_hours + offset)^gravity
+                # No -1 penalty: new posts are visible but don't dominate
+                gravity = self.settings.ranking.gravity
+                time_offset = self.settings.ranking.time_offset
+
+                # Calculate age in hours
+                age_hours = (
+                    func.extract("epoch", func.now() - posts_table.c.created_at) / 3600
+                )
+
+                # Calculate score
+                score = posts_table.c.points / func.pow(
+                    age_hours + time_offset, gravity
+                )
+
+                stmt = stmt.order_by(desc(score))
 
             # Pagination
             stmt = stmt.limit(limit).offset(offset)

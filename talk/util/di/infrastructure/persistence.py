@@ -90,9 +90,11 @@ class ProdPersistenceProvider(PersistenceProvider):
         return PostgresUserIdentityRepository(session)
 
     @provide(scope=Scope.REQUEST)
-    def get_post_repository(self, session: AsyncSession) -> PostRepository:
+    def get_post_repository(
+        self, session: AsyncSession, settings: Settings
+    ) -> PostRepository:
         """Provide Post repository."""
-        return PostgresPostRepository(session)
+        return PostgresPostRepository(session, settings)
 
     @provide(scope=Scope.REQUEST)
     def get_comment_repository(self, session: AsyncSession) -> CommentRepository:

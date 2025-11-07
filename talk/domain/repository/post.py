@@ -14,6 +14,7 @@ class PostSortOrder(str, Enum):
 
     RECENT = "recent"  # Sort by created_at DESC
     ACTIVE = "active"  # Sort by most recent comment activity
+    HOT = "hot"  # Time-decay ranking (default front page)
 
 
 class PostRepository(ABC):
