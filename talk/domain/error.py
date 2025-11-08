@@ -40,3 +40,12 @@ class InvalidEditOperationError(DomainError):
 
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class NotFoundError(DomainError):
+    """Raised when a requested resource is not found."""
+
+    def __init__(self, resource: str, identifier: str):
+        self.resource = resource
+        self.identifier = identifier
+        super().__init__(f"{resource} not found: {identifier}")

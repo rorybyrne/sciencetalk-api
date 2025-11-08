@@ -69,11 +69,14 @@ class UpdateUserProfileUseCase:
         """
         from uuid import UUID
 
+        from talk.domain.error import NotFoundError
+
         user_id = UserId(UUID(request.user_id))
 
         # Get current user
-        user = await self.user_service.get_user_by_id(user_id)
-        if not user:
+        try:
+            user = await self.user_service.get_by_id(user_id)
+        except NotFoundError:
             raise ValueError("User not found")
 
         # Update allowed fields (create new instance since Pydantic models are immutable)

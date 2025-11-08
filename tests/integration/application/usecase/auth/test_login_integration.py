@@ -121,7 +121,7 @@ class TestLoginIntegration:
         )
         assert created_identity is not None
 
-        created_user = await user_service.get_user_by_id(created_identity.user_id)
+        created_user = await user_service.get_by_id(created_identity.user_id)
         assert created_user is not None
         assert created_user.handle.root == "user.bsky.social"
         assert created_user.karma == 0  # New users start with 0 karma

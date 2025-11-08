@@ -3,8 +3,6 @@
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 
-from talk.application.usecase.auth import GetCurrentUserUseCase
-from talk.application.usecase.auth.get_current_user import GetCurrentUserRequest
 from talk.application.usecase.vote import (
     RemoveVoteRequest,
     RemoveVoteResponse,
@@ -13,8 +11,8 @@ from talk.application.usecase.vote import (
     UpvoteResponse,
     UpvoteUseCase,
 )
+from talk.domain.service import JWTService
 from talk.domain.value import VotableType
-from talk.util.jwt import JWTError
 
 router = APIRouter(tags=["votes"], route_class=DishkaRoute)
 
@@ -23,7 +21,7 @@ router = APIRouter(tags=["votes"], route_class=DishkaRoute)
 async def upvote_post(
     post_id: str,
     upvote_use_case: FromDishka[UpvoteUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> UpvoteResponse:
     """Upvote a post.
@@ -33,7 +31,7 @@ async def upvote_post(
     Args:
         post_id: Post UUID
         upvote_use_case: Upvote use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -42,26 +40,12 @@ async def upvote_post(
     Raises:
         HTTPException: If not authenticated, already voted, or post not found
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to vote",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Upvote post
@@ -69,7 +53,7 @@ async def upvote_post(
         request = UpvoteRequest(
             votable_type=VotableType.POST,
             votable_id=post_id,
-            user_id=user.user_id,
+            user_id=user_id,
         )
         return await upvote_use_case.execute(request)
     except ValueError as e:
@@ -83,7 +67,7 @@ async def upvote_post(
 async def remove_vote_from_post(
     post_id: str,
     remove_vote_use_case: FromDishka[RemoveVoteUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> RemoveVoteResponse:
     """Remove vote from a post.
@@ -93,7 +77,7 @@ async def remove_vote_from_post(
     Args:
         post_id: Post UUID
         remove_vote_use_case: Remove vote use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -102,27 +86,12 @@ async def remove_vote_from_post(
     Raises:
         HTTPException: If not authenticated or post not found
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to remove vote",
-        )
-
-    try:
-        # TODO: use service, not usecase
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Remove vote
@@ -130,7 +99,7 @@ async def remove_vote_from_post(
         request = RemoveVoteRequest(
             votable_type=VotableType.POST,
             votable_id=post_id,
-            user_id=user.user_id,
+            user_id=user_id,
         )
         return await remove_vote_use_case.execute(request)
     except ValueError as e:
@@ -144,7 +113,7 @@ async def remove_vote_from_post(
 async def upvote_comment(
     comment_id: str,
     upvote_use_case: FromDishka[UpvoteUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> UpvoteResponse:
     """Upvote a comment.
@@ -154,7 +123,7 @@ async def upvote_comment(
     Args:
         comment_id: Comment UUID
         upvote_use_case: Upvote use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -163,26 +132,12 @@ async def upvote_comment(
     Raises:
         HTTPException: If not authenticated, already voted, or comment not found
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to vote",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Upvote comment
@@ -190,7 +145,7 @@ async def upvote_comment(
         request = UpvoteRequest(
             votable_type=VotableType.COMMENT,
             votable_id=comment_id,
-            user_id=user.user_id,
+            user_id=user_id,
         )
         return await upvote_use_case.execute(request)
     except ValueError as e:
@@ -204,7 +159,7 @@ async def upvote_comment(
 async def remove_vote_from_comment(
     comment_id: str,
     remove_vote_use_case: FromDishka[RemoveVoteUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> RemoveVoteResponse:
     """Remove vote from a comment.
@@ -214,7 +169,7 @@ async def remove_vote_from_comment(
     Args:
         comment_id: Comment UUID
         remove_vote_use_case: Remove vote use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -223,26 +178,12 @@ async def remove_vote_from_comment(
     Raises:
         HTTPException: If not authenticated or comment not found
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to remove vote",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Remove vote
@@ -250,7 +191,7 @@ async def remove_vote_from_comment(
         request = RemoveVoteRequest(
             votable_type=VotableType.COMMENT,
             votable_id=comment_id,
-            user_id=user.user_id,
+            user_id=user_id,
         )
         return await remove_vote_use_case.execute(request)
     except ValueError as e:

@@ -7,8 +7,6 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel, Field
 
-from talk.application.usecase.auth import GetCurrentUserUseCase
-from talk.application.usecase.auth.get_current_user import GetCurrentUserRequest
 from talk.application.usecase.post import (
     CreatePostRequest,
     CreatePostResponse,
@@ -28,9 +26,10 @@ from talk.domain.error import (
     DomainError,
     InvalidEditOperationError,
     NotAuthorizedError,
+    NotFoundError,
 )
 from talk.domain.repository.post import PostSortOrder
-from talk.util.jwt import JWTError
+from talk.domain.service import JWTService
 
 router = APIRouter(prefix="/posts", tags=["posts"], route_class=DishkaRoute)
 
@@ -48,7 +47,7 @@ class CreatePostAPIRequest(BaseModel):
 async def create_post(
     request: CreatePostAPIRequest,
     create_post_use_case: FromDishka[CreatePostUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> CreatePostResponse:
     """Create a new post.
@@ -58,7 +57,7 @@ async def create_post(
     Args:
         request: Post creation data
         create_post_use_case: Create post use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -67,26 +66,12 @@ async def create_post(
     Raises:
         HTTPException: If not authenticated or validation fails
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to create posts",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Create post
@@ -94,8 +79,7 @@ async def create_post(
         use_case_request = CreatePostRequest(
             title=request.title,
             tag_names=request.tag_names,
-            author_id=user.user_id,
-            author_handle=user.handle,
+            author_id=user_id,
             url=request.url,
             text=request.text,
         )
@@ -103,6 +87,12 @@ async def create_post(
         result = await create_post_use_case.execute(use_case_request)
         return result
 
+    except NotFoundError as e:
+        logfire.warn("Post creation failed - user not found", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
     except DomainError as e:
         logfire.warn("Post creation domain error", error=str(e))
         raise HTTPException(
@@ -134,7 +124,7 @@ async def update_post(
     post_id: UUID,
     request: UpdatePostAPIRequest,
     update_post_use_case: FromDishka[UpdatePostUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> UpdatePostResponse:
     """Update a post's text content.
@@ -145,7 +135,7 @@ async def update_post(
         post_id: Post UUID
         request: Update data (text content)
         update_post_use_case: Update post use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -154,33 +144,19 @@ async def update_post(
     Raises:
         HTTPException: If not authenticated, not authorized, or validation fails
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to edit posts",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Update post
     try:
         use_case_request = UpdatePostRequest(
             post_id=str(post_id),
-            user_id=user.user_id,
+            user_id=user_id,
             text=request.text,
         )
 
@@ -223,7 +199,7 @@ async def update_post(
 async def get_post_by_id(
     post_id: UUID,
     get_post_use_case: FromDishka[GetPostUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> GetPostResponse:
     """Get a post by UUID.
@@ -234,7 +210,7 @@ async def get_post_by_id(
     Args:
         post_id: Post UUID
         get_post_use_case: Get post use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie (optional)
 
     Returns:
@@ -243,18 +219,8 @@ async def get_post_by_id(
     Raises:
         HTTPException: If post not found
     """
-    # Get current user ID if authenticated
-    user_id = None
-    if auth_token:
-        try:
-            user = await get_current_user_use_case.execute(
-                GetCurrentUserRequest(token=auth_token)
-            )
-            if user:
-                user_id = user.user_id
-        except JWTError:
-            # Invalid token, treat as unauthenticated
-            pass
+    # Get user ID from token without database queries
+    user_id = jwt_service.get_user_id_from_token(auth_token)
 
     try:
         post = await get_post_use_case.execute(
@@ -286,7 +252,7 @@ async def get_post_by_id(
 async def get_post_by_slug(
     slug: str,
     get_post_use_case: FromDishka[GetPostUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> GetPostResponse:
     """Get a post by slug.
@@ -296,7 +262,7 @@ async def get_post_by_slug(
     Args:
         slug: Post slug (e.g., 'new-crispr-technique-improves-accuracy')
         get_post_use_case: Get post use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie (optional)
 
     Returns:
@@ -305,18 +271,8 @@ async def get_post_by_slug(
     Raises:
         HTTPException: If post not found
     """
-    # Get current user ID if authenticated
-    user_id = None
-    if auth_token:
-        try:
-            user = await get_current_user_use_case.execute(
-                GetCurrentUserRequest(token=auth_token)
-            )
-            if user:
-                user_id = user.user_id
-        except JWTError:
-            # Invalid token, treat as unauthenticated
-            pass
+    # Get user ID from token without database queries
+    user_id = jwt_service.get_user_id_from_token(auth_token)
 
     try:
         post = await get_post_use_case.execute(
@@ -345,7 +301,7 @@ async def get_post_by_slug(
 @router.get("", response_model=ListPostsResponse)
 async def list_posts(
     list_posts_use_case: FromDishka[ListPostsUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     sort: PostSortOrder = PostSortOrder.RECENT,
     tag: str | None = None,
     limit: int = 30,
@@ -356,7 +312,7 @@ async def list_posts(
 
     Args:
         list_posts_use_case: List posts use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         sort: Sort order (recent or active)
         tag: Filter by tag name (optional)
         limit: Maximum number of posts to return (1-100)
@@ -366,19 +322,8 @@ async def list_posts(
     Returns:
         List of posts
     """
-
-    # Get current user ID if authenticated
-    user_id = None
-    if auth_token:
-        try:
-            user = await get_current_user_use_case.execute(
-                GetCurrentUserRequest(token=auth_token)
-            )
-            if user:
-                user_id = user.user_id
-        except JWTError:
-            # Invalid token, treat as unauthenticated
-            pass
+    # Get user ID from token without database queries
+    user_id = jwt_service.get_user_id_from_token(auth_token)
 
     # Validate pagination
     if limit < 1 or limit > 100:

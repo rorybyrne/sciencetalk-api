@@ -57,3 +57,28 @@ class JWTService(Service):
             except Exception as e:
                 logfire.error("JWT token verification failed", error=str(e))
                 raise
+
+    def get_user_id_from_token(self, token: str | None) -> str | None:
+        """Extract user ID from JWT token without raising exceptions.
+
+        This is a convenience method for API routes that need to optionally
+        authenticate users without failing on invalid tokens.
+
+        Args:
+            token: JWT token string (optional)
+
+        Returns:
+            User ID if token is valid, None if token is missing or invalid
+        """
+        if not token:
+            return None
+
+        try:
+            payload = self.verify_token(token)
+            return payload.user_id
+        except Exception as e:
+            # Invalid or expired token, treat as unauthenticated
+            logfire.debug(
+                "JWT verification failed, treating as unauthenticated", error=str(e)
+            )
+            return None

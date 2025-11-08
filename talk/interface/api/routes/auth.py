@@ -15,6 +15,7 @@ from talk.application.usecase.auth.get_current_user import (
 )
 from talk.application.usecase.auth.login import LoginRequest
 from talk.config import Settings
+from talk.domain.error import NotFoundError
 from talk.domain.service import AuthService
 from talk.domain.value import AuthProvider
 from talk.util.jwt import JWTError
@@ -396,13 +397,11 @@ async def get_current_user(
         user = await get_current_user_use_case.execute(
             GetCurrentUserRequest(token=auth_token)
         )
-
-        if not user:
-            # JWT valid but user not found in database (orphaned token)
-            return AuthStatusResponse(authenticated=False)
-
         return AuthStatusResponse(authenticated=True, user=user)
 
     except JWTError:
         # Invalid or expired token - this is expected behavior, not an error
+        return AuthStatusResponse(authenticated=False)
+    except NotFoundError:
+        # JWT valid but user not found in database (orphaned token)
         return AuthStatusResponse(authenticated=False)

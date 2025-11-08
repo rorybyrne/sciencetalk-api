@@ -1,13 +1,16 @@
 """Get current user use case."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from talk.domain.repository import UserRepository
-from talk.domain.service import InviteService, JWTService, UserIdentityService
+from talk.domain.service import (
+    InviteService,
+    JWTService,
+    UserIdentityService,
+    UserService,
+)
 from talk.domain.value import AuthProvider, UserId
 from talk.domain.value.types import Handle, InviteStatus
 
@@ -58,7 +61,7 @@ class GetCurrentUserUseCase:
     def __init__(
         self,
         jwt_service: JWTService,
-        user_repository: UserRepository,
+        user_service: UserService,
         invite_service: InviteService,
         user_identity_service: UserIdentityService,
     ) -> None:
@@ -66,19 +69,16 @@ class GetCurrentUserUseCase:
 
         Args:
             jwt_service: JWT token domain service
-            user_repository: User repository
+            user_service: User domain service
             invite_service: Invite domain service
             user_identity_service: User identity domain service
         """
         self.jwt_service = jwt_service
-        # TODO: use service, not repository
-        self.user_repository = user_repository
+        self.user_service = user_service
         self.invite_service = invite_service
         self.user_identity_service = user_identity_service
 
-    async def execute(
-        self, request: GetCurrentUserRequest
-    ) -> Optional[GetCurrentUserResponse]:
+    async def execute(self, request: GetCurrentUserRequest) -> GetCurrentUserResponse:
         """Execute get current user flow.
 
         Steps:
@@ -92,19 +92,17 @@ class GetCurrentUserUseCase:
             request: Request with JWT token
 
         Returns:
-            User information if token is valid and user exists, None otherwise
+            User information if token is valid and user exists
 
         Raises:
             JWTError: If token is invalid or expired
+            NotFoundError: If user not found
         """
         # Verify token (raises JWTError if invalid)
         payload = self.jwt_service.verify_token(request.token)
 
-        # Load user from database
-        user = await self.user_repository.find_by_id(UserId(UUID(payload.user_id)))
-
-        if not user:
-            return None
+        # Load user from database (raises NotFoundError if not found)
+        user = await self.user_service.get_by_id(UserId(UUID(payload.user_id)))
 
         # Load user's invitations
         invites = await self.invite_service.list_invites(user.id)

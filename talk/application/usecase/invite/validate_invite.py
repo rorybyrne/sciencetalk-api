@@ -3,6 +3,7 @@
 import logfire
 from pydantic import BaseModel
 
+from talk.domain.error import NotFoundError
 from talk.domain.service import InviteService, UserService
 from talk.domain.value import AuthProvider, InviteStatus, InviteToken
 
@@ -80,8 +81,12 @@ class ValidateInviteUseCase:
                 )
 
             # Get inviter user to populate inviter_handle
-            inviter = await self.user_service.get_user_by_id(invite.inviter_id)
-            inviter_handle = inviter.handle.root if inviter else None
+            try:
+                inviter = await self.user_service.get_by_id(invite.inviter_id)
+                inviter_handle = inviter.handle.root
+            except NotFoundError:
+                # Inviter was deleted
+                inviter_handle = None
 
             # Valid pending invite
             logfire.info(

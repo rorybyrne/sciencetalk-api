@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from talk.config import Settings
+from talk.domain.error import NotFoundError
 from talk.domain.service import InviteService, UserService
 from talk.domain.value import AuthProvider, InviteStatus, UserId
 
@@ -74,9 +75,10 @@ class GetInvitesUseCase:
         user_id = UserId(UUID(request.inviter_id))
 
         # Get user to calculate remaining quota
-        user = await self.user_service.get_user_by_id(user_id)
-        if not user:
-            raise ValueError("User not found")
+        try:
+            user = await self.user_service.get_by_id(user_id)
+        except NotFoundError as e:
+            raise ValueError(str(e))
 
         # Get invites from service
         invites = await self.invite_service.list_invites(

@@ -10,10 +10,12 @@ from talk.application.usecase.comment.create_comment import (
     CreateCommentUseCase,
 )
 from talk.domain.model.post import Post
-from talk.domain.service import CommentService, PostService
+from talk.domain.model.user import User
+from talk.domain.service import CommentService, PostService, UserService
 from talk.domain.value import PostId, UserId
 from talk.domain.value.types import Handle, TagName
 from talk.persistence.repository.post import PostRepository
+from talk.persistence.repository.user import UserRepository
 from tests.conftest import make_slug
 from tests.harness import create_env_fixture
 
@@ -30,17 +32,31 @@ class TestCreateCommentUseCase:
         # Arrange
         comment_service = await unit_env.get(CommentService)
         post_service = await unit_env.get(PostService)
+        user_service = await unit_env.get(UserService)
         post_repo = await unit_env.get(PostRepository)
+        user_repo = await unit_env.get(UserRepository)
 
         create_comment_use_case = CreateCommentUseCase(
             comment_service=comment_service,
             post_service=post_service,
+            user_service=user_service,
         )
 
         post_id = PostId(uuid4())
         author_id = UserId(uuid4())
         author_handle = Handle(root="user.bsky.social")
         text = "Test comment"
+
+        # Create and save user
+        user = User(
+            id=author_id,
+            handle=author_handle,
+            email=None,
+            karma=0,
+            bio=None,
+            created_at=datetime.now(),
+        )
+        await user_repo.save(user)
 
         post = Post(
             id=post_id,
@@ -64,7 +80,6 @@ class TestCreateCommentUseCase:
             post_id=str(post_id),
             text=text,
             author_id=str(author_id),
-            author_handle=author_handle,
             parent_id=None,
         )
 
@@ -85,19 +100,34 @@ class TestCreateCommentUseCase:
         # Arrange
         comment_service = await unit_env.get(CommentService)
         post_service = await unit_env.get(PostService)
+        user_service = await unit_env.get(UserService)
+        user_repo = await unit_env.get(UserRepository)
 
         create_comment_use_case = CreateCommentUseCase(
             comment_service=comment_service,
             post_service=post_service,
+            user_service=user_service,
         )
 
         post_id = PostId(uuid4())
+        author_id = UserId(uuid4())
+        author_handle = Handle(root="user.bsky.social")
+
+        # Create and save user
+        user = User(
+            id=author_id,
+            handle=author_handle,
+            email=None,
+            karma=0,
+            bio=None,
+            created_at=datetime.now(),
+        )
+        await user_repo.save(user)
 
         request = CreateCommentRequest(
             post_id=str(post_id),
             text="Test comment",
-            author_id=str(uuid4()),
-            author_handle=Handle(root="user.bsky.social"),
+            author_id=str(author_id),
             parent_id=None,
         )
 

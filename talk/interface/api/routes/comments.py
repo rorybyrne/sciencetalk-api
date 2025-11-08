@@ -5,8 +5,6 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Cookie, HTTPException, status
 from pydantic import BaseModel, Field
 
-from talk.application.usecase.auth import GetCurrentUserUseCase
-from talk.application.usecase.auth.get_current_user import GetCurrentUserRequest
 from talk.application.usecase.comment import (
     CreateCommentRequest,
     CreateCommentResponse,
@@ -18,8 +16,8 @@ from talk.application.usecase.comment import (
     UpdateCommentResponse,
     UpdateCommentUseCase,
 )
-from talk.domain.error import ContentDeletedException, NotAuthorizedError
-from talk.util.jwt import JWTError
+from talk.domain.error import ContentDeletedException, NotAuthorizedError, NotFoundError
+from talk.domain.service import JWTService
 
 router = APIRouter(prefix="/posts", tags=["comments"], route_class=DishkaRoute)
 
@@ -40,7 +38,7 @@ async def create_comment(
     post_id: str,
     request: CreateCommentAPIRequest,
     create_comment_use_case: FromDishka[CreateCommentUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> CreateCommentResponse:
     """Create a comment on a post or reply to another comment.
@@ -51,7 +49,7 @@ async def create_comment(
         post_id: Post UUID
         request: Comment creation data
         create_comment_use_case: Create comment use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -60,26 +58,12 @@ async def create_comment(
     Raises:
         HTTPException: If not authenticated or validation fails
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to create comments",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Create comment
@@ -87,11 +71,16 @@ async def create_comment(
         use_case_request = CreateCommentRequest(
             post_id=post_id,
             text=request.text,
-            author_id=user.user_id,
-            author_handle=user.handle,
+            author_id=user_id,
             parent_id=request.parent_id,
         )
         return await create_comment_use_case.execute(use_case_request)
+    except NotFoundError as e:
+        logfire.warn("Comment creation failed - user not found", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,7 +100,7 @@ async def update_comment(
     comment_id: str,
     request: UpdateCommentAPIRequest,
     update_comment_use_case: FromDishka[UpdateCommentUseCase],
-    get_current_user_use_case: FromDishka[GetCurrentUserUseCase],
+    jwt_service: FromDishka[JWTService],
     auth_token: str | None = Cookie(default=None),
 ) -> UpdateCommentResponse:
     """Update a comment's text content.
@@ -123,7 +112,7 @@ async def update_comment(
         comment_id: Comment UUID
         request: Update data (text content)
         update_comment_use_case: Update comment use case from DI
-        get_current_user_use_case: Get current user use case from DI
+        jwt_service: JWT service for token verification (injected)
         auth_token: JWT token from cookie
 
     Returns:
@@ -132,26 +121,12 @@ async def update_comment(
     Raises:
         HTTPException: If not authenticated, not authorized, or validation fails
     """
-    # Verify authentication
-    if not auth_token:
+    # Verify authentication and get user ID
+    user_id = jwt_service.get_user_id_from_token(auth_token)
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to edit comments",
-        )
-
-    try:
-        user = await get_current_user_use_case.execute(
-            GetCurrentUserRequest(token=auth_token)
-        )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
         )
 
     # Update comment
@@ -159,7 +134,7 @@ async def update_comment(
         use_case_request = UpdateCommentRequest(
             comment_id=comment_id,
             post_id=post_id,
-            user_id=user.user_id,
+            user_id=user_id,
             text=request.text,
         )
 

@@ -77,7 +77,7 @@ class TestLoginUseCase:
         )
         assert identity is not None
 
-        saved_user = await user_service.get_user_by_id(identity.user_id)
+        saved_user = await user_service.get_by_id(identity.user_id)
         assert saved_user is not None
         assert saved_user.handle.root == "user.bsky.social"
         assert saved_user.karma == 0  # New users start with 0 karma
@@ -159,7 +159,7 @@ class TestLoginUseCase:
         assert response.user_id == str(existing_user_id)
 
         # Verify user still exists
-        saved_user = await user_service.get_user_by_id(existing_user_id)
+        saved_user = await user_service.get_by_id(existing_user_id)
         assert saved_user is not None
 
         # Verify karma preserved
@@ -299,7 +299,7 @@ class TestLoginUseCase:
         )
         assert identity is not None
 
-        saved_user = await user_service.get_user_by_id(identity.user_id)
+        saved_user = await user_service.get_by_id(identity.user_id)
         assert saved_user is not None
         assert saved_user.handle.root == "user.bsky.social"
         assert saved_user.karma == 0

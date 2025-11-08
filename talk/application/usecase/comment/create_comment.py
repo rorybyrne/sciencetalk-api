@@ -5,9 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from talk.domain.service import CommentService, PostService
+from talk.domain.service import CommentService, PostService, UserService
 from talk.domain.value import CommentId, PostId, UserId
-from talk.domain.value.types import Handle
 
 
 class CreateCommentRequest(BaseModel):
@@ -16,7 +15,6 @@ class CreateCommentRequest(BaseModel):
     post_id: str  # UUID string
     text: str
     author_id: str  # User ID from authenticated user
-    author_handle: Handle  # Handle from authenticated user
     parent_id: str | None = None  # Parent comment ID for replies
 
 
@@ -39,23 +37,27 @@ class CreateCommentUseCase:
         self,
         comment_service: CommentService,
         post_service: PostService,
+        user_service: UserService,
     ) -> None:
         """Initialize create comment use case.
 
         Args:
             comment_service: Comment domain service
             post_service: Post domain service
+            user_service: User domain service
         """
         self.comment_service = comment_service
         self.post_service = post_service
+        self.user_service = user_service
 
     async def execute(self, request: CreateCommentRequest) -> CreateCommentResponse:
         """Execute create comment flow.
 
         Steps:
-        1. Verify post exists via post service
-        2. Create comment via comment service (validates parent if replying)
-        3. Update post's comment count via post service
+        1. Load user to get handle (via UserService)
+        2. Verify post exists via post service
+        3. Create comment via comment service (validates parent if replying)
+        4. Update post's comment count via post service
 
         Args:
             request: Create comment request
@@ -64,8 +66,13 @@ class CreateCommentUseCase:
             Create comment response with comment details
 
         Raises:
+            NotFoundError: If user not found
             ValueError: If post not found or parent comment invalid
         """
+        # Load user to get handle
+        author_id = UserId(UUID(request.author_id))
+        user = await self.user_service.get_by_id(author_id)  # Raises NotFoundError
+
         post_id = PostId(UUID(request.post_id))
 
         # Verify post exists
@@ -79,8 +86,8 @@ class CreateCommentUseCase:
         )
         comment = await self.comment_service.create_comment(
             post_id=post_id,
-            author_id=UserId(UUID(request.author_id)),
-            author_handle=request.author_handle,
+            author_id=author_id,
+            author_handle=user.handle,
             text=request.text,
             parent_id=parent_comment_id,
         )

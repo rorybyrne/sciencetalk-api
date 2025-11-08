@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import logfire
 
+from talk.domain.error import NotFoundError
 from talk.domain.model import User
 from talk.domain.repository import InviteRepository, UserRepository
 from talk.domain.value import AuthProvider, UserId
@@ -41,23 +42,24 @@ class UserService:
         self.user_repository = user_repository
         self.invite_repository = invite_repository
 
-    async def get_user_by_id(self, user_id: UserId) -> User | None:
+    async def get_by_id(self, user_id: UserId) -> User:
         """Get user by ID.
 
         Args:
             user_id: User ID
 
         Returns:
-            User if found, None otherwise
+            User entity
+
+        Raises:
+            NotFoundError: If user not found
         """
-        with logfire.span("user_service.get_user_by_id", user_id=str(user_id)):
+        with logfire.span("user_service.get_by_id", user_id=str(user_id)):
             user = await self.user_repository.find_by_id(user_id)
-            if user:
-                logfire.info(
-                    "User found", user_id=str(user_id), handle=user.handle.root
-                )
-            else:
+            if not user:
                 logfire.warn("User not found", user_id=str(user_id))
+                raise NotFoundError("User", str(user_id))
+            logfire.info("User found", user_id=str(user_id), handle=user.handle.root)
             return user
 
     async def get_user_by_handle(self, handle: Handle) -> User | None:

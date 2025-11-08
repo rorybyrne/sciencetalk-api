@@ -28,7 +28,7 @@ from talk.application.usecase.user import (
     UpdateUserProfileUseCase,
 )
 from talk.application.usecase.vote import RemoveVoteUseCase, UpvoteUseCase
-from talk.domain.repository import PostRepository, UserRepository, VoteRepository
+from talk.domain.repository import PostRepository, VoteRepository
 from talk.domain.service import (
     AuthService,
     CommentService,
@@ -70,14 +70,14 @@ class ProdApplicationProvider(ProviderBase):
     def get_current_user_use_case(
         self,
         jwt_service: JWTService,
-        user_repository: UserRepository,
+        user_service: UserService,
         invite_service: InviteService,
         user_identity_service: UserIdentityService,
     ) -> GetCurrentUserUseCase:
         """Provide get current user use case."""
         return GetCurrentUserUseCase(
             jwt_service=jwt_service,
-            user_repository=user_repository,
+            user_service=user_service,
             invite_service=invite_service,
             user_identity_service=user_identity_service,
         )
@@ -85,10 +85,17 @@ class ProdApplicationProvider(ProviderBase):
     # Post use cases
     @provide(scope=Scope.REQUEST)
     def get_create_post_use_case(
-        self, post_service: PostService, tag_service: TagService
+        self,
+        post_service: PostService,
+        tag_service: TagService,
+        user_service: UserService,
     ) -> CreatePostUseCase:
         """Provide create post use case."""
-        return CreatePostUseCase(post_service=post_service, tag_service=tag_service)
+        return CreatePostUseCase(
+            post_service=post_service,
+            tag_service=tag_service,
+            user_service=user_service,
+        )
 
     @provide(scope=Scope.REQUEST)
     def get_get_post_use_case(
@@ -120,12 +127,16 @@ class ProdApplicationProvider(ProviderBase):
     # Comment use cases
     @provide(scope=Scope.REQUEST)
     def get_create_comment_use_case(
-        self, comment_service: CommentService, post_service: PostService
+        self,
+        comment_service: CommentService,
+        post_service: PostService,
+        user_service: UserService,
     ) -> CreateCommentUseCase:
         """Provide create comment use case."""
         return CreateCommentUseCase(
             comment_service=comment_service,
             post_service=post_service,
+            user_service=user_service,
         )
 
     @provide(scope=Scope.REQUEST)

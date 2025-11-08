@@ -90,6 +90,74 @@ For detailed API specifications, data models, and technical requirements, see [b
 └───────────────────────────┘ └─────────────────────────────┘
 ```
 
+### 🎯 Key Architectural Principles
+
+#### Use Case Design Pattern
+
+**Use Cases are 1:1 with Routes** - Each HTTP route has exactly one use case that performs its business operation.
+
+**Use Cases Call Services, NOT Other Use Cases** - Use cases orchestrate domain services to accomplish their goal. They do not call other use cases.
+
+**Dependency Flow:**
+```
+Routes (Interface Layer)
+  ↓ calls
+Use Cases (Application Layer)
+  ↓ calls
+Domain Services (Domain Layer)
+  ↓ calls
+Repositories (via interfaces)
+```
+
+**Example:**
+```python
+# ✅ CORRECT: Use case calls services
+class CreatePostUseCase:
+    def __init__(
+        self,
+        post_service: PostService,      # Domain service
+        tag_service: TagService,        # Domain service
+        user_service: UserService,      # Domain service for loading user
+    ):
+        ...
+
+    async def execute(self, request: CreatePostRequest):
+        # Load user via service (1 DB query)
+        user = await self.user_service.get_by_id(request.author_id)
+
+        # Use domain services for business operations
+        await self.tag_service.validate_tags_exist(request.tag_names)
+        post = await self.post_service.create_post(
+            author_id=user.id,
+            author_handle=user.handle,
+            ...
+        )
+
+# ❌ WRONG: Use case calls another use case
+class CreatePostUseCase:
+    def __init__(
+        self,
+        post_service: PostService,
+        get_current_user_use_case: GetCurrentUserUseCase,  # ❌ Don't do this
+    ):
+        ...
+```
+
+**Why This Pattern?**
+
+1. **Single Responsibility**: Each use case does one business operation
+2. **No Tight Coupling**: Use cases are independent, not calling each other
+3. **Services Are Reusable**: Domain services provide reusable logic (e.g., `UserService.get_by_id()`)
+4. **Clear Boundaries**: Routes orchestrate, use cases execute, services provide domain logic
+5. **Testability**: Use cases can be tested in isolation by mocking services
+
+**Special Case - GetCurrentUserUseCase:**
+
+`GetCurrentUserUseCase` is designed specifically for the `/auth/me` endpoint which returns full user profile with invitations and identities (3 DB queries). It should **NOT** be used by other use cases. Instead:
+
+- For user_id only: Use `JWTService.get_user_id_from_token()` (0 DB queries)
+- For user data: Use `UserService.get_by_id()` (1 DB query)
+
 ## 🚀 Quick Start
 
 ### Prerequisites

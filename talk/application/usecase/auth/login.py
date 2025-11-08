@@ -7,6 +7,7 @@ import logfire
 from pydantic import BaseModel
 
 from talk.config import Settings
+from talk.domain.error import NotFoundError
 from talk.domain.model.user import User
 from talk.domain.model.user_identity import UserIdentity
 from talk.domain.service import (
@@ -112,7 +113,11 @@ class LoginUseCase:
         ):
             if existing_identity:
                 # Existing user - update last login
-                user = await self.user_service.get_user_by_id(existing_identity.user_id)
+                try:
+                    user = await self.user_service.get_by_id(existing_identity.user_id)
+                except NotFoundError:
+                    # Identity exists but user doesn't - data inconsistency, treat as new user
+                    user = None
                 if not user:
                     raise ValueError("User not found for existing identity")
 

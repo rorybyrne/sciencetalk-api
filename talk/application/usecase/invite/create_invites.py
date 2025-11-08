@@ -12,6 +12,7 @@ from talk.adapter.bluesky.identity import (
 )
 from talk.application.usecase.base import BaseUseCase
 from talk.config import Settings
+from talk.domain.error import NotFoundError
 from talk.domain.model.invite import Invite
 from talk.domain.service import InviteService, UserIdentityService, UserService
 from talk.domain.value import AuthProvider, InviteStatus, InviteToken, UserId
@@ -99,9 +100,10 @@ class CreateInvitesUseCase(BaseUseCase):
             invite_count=len(request.invitees),
         ):
             # Get inviter
-            inviter = await self.user_service.get_user_by_id(inviter_id)
-            if not inviter:
-                raise ValueError("User not found")
+            try:
+                inviter = await self.user_service.get_by_id(inviter_id)
+            except NotFoundError as e:
+                raise ValueError(str(e))
 
             # Check if user is a seed user (unlimited invites)
             is_seed_user = self._is_seed_user(inviter.handle)
