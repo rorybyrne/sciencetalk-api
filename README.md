@@ -5,6 +5,10 @@ A forum platform for sharing scientific results, methods, tools, and discussions
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ebde38a0-abdb-4d78-8b37-21eba459721b" alt="Science Talk Screenshot" width="800">
+</p>
+
 ## Features
 
 - **Six Post Types**: Result, Method, Review, Discussion, Ask, Tool
@@ -41,10 +45,10 @@ See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
 
 ```bash
 # Install dependencies
-just install
+uv sync
 
 # Start local environment (PostgreSQL + API)
-just setup
+just local up
 
 # Verify everything works
 curl http://localhost:8000/health
@@ -53,17 +57,22 @@ curl http://localhost:8000/health
 ### Development
 
 ```bash
-# Start development server
-just dev
+# View available commands
+just --list
 
 # Run tests
 just test
 
-# Run linter and type checker
-just lint
+# Run specific test types
+just test unit
+just test integration
+just test-e2e
 
 # Format code
 just fix
+
+# Run linter and type checker
+just lint
 ```
 
 ## Configuration
@@ -84,31 +93,24 @@ Once running, visit:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## Testing
+## Additional Commands
 
 ```bash
-# All tests
-just test
+# Database migrations
+just db-migrate              # Run migrations
+just db-migration "name"     # Create new migration
 
-# Unit tests only
-just test unit
+# Local environment management
+just local down              # Stop services
+just local logs              # View logs
+just local db-connect        # Connect to database
+just local wipe              # Reset database
 
-# Integration tests
-just test integration
-
-# E2E tests
-just test e2e
+# Docker standalone
+just docker-build            # Build image
+just docker-serve            # Build and run container
 ```
 
-## Docker Deployment
-
-```bash
-# Build image
-just docker-build
-
-# Run container
-just docker-serve
-```
 
 ## Project Structure
 
