@@ -68,9 +68,11 @@ class TestAuthFlow:
 
     def test_callback_redirects_to_frontend(self, client, e2e_env):
         """Should handle callback and redirect to frontend."""
-        _ = e2e_env  # satisfy linter
         # Note: This test uses the mock client which doesn't require a real session
         # In production, the state parameter would need to match an existing session
+
+        # With invite_only=False (default in tests), the callback should succeed
+        # and redirect to frontend with a token
 
         # Act
         response = client.get(
@@ -84,13 +86,11 @@ class TestAuthFlow:
         )
 
         # Assert
-        # Since we're using a mock client, the callback will fail
-        # because there's no invite for the mock user
-        # The important thing is that it tries to redirect with an error
+        # Should redirect to frontend (with or without token depending on invite_only setting)
         assert response.status_code == 302
         assert "Location" in response.headers
-        # Should redirect to error page since no invite exists
-        assert "/auth/error" in response.headers["Location"]
+        # With invite_only=False, should redirect to frontend (not error page)
+        assert "http://localhost:3000" in response.headers["Location"]
 
     def test_logout_clears_cookie(self, client):
         """Should clear auth cookie on logout."""

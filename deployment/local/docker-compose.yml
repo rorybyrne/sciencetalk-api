@@ -36,6 +36,7 @@ services:
 
       # Auth (use insecure defaults for local dev)
       - AUTH__JWT_SECRET=local-dev-secret-not-for-production
+      - AUTH__INVITE_ONLY=false
 
       # OAuth providers (optional - only needed if testing OAuth)
       # - AUTH__BLUESKY__DEFAULT_PDS_URL=https://bsky.social

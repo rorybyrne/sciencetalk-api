@@ -249,16 +249,17 @@ class LoginUseCase:
         """Validate invite for new user.
 
         Seed users bypass invite requirement entirely.
+        If invite_only mode is disabled, creates a synthetic invite from rory.bio for provenance.
 
         Args:
             request: Login request with optional invite token
             provider_info: Provider user information
 
         Returns:
-            Valid invite or None for seed users
+            Valid invite, synthetic invite (if invite_only disabled), or None for seed users
 
         Raises:
-            ValueError: If invite validation fails
+            ValueError: If invite validation fails (when invite_only is enabled)
         """
         # Check if this is a seed user - they bypass invite requirement
         if self._is_seed_user(provider_info):
@@ -268,6 +269,15 @@ class LoginUseCase:
                 provider=provider_info.provider.value,
             )
             return None  # Seed users don't need invites
+
+        # If invite_only mode is disabled, create synthetic invite for provenance
+        if not self.settings.auth.invite_only:
+            logfire.info(
+                "Invite-only mode disabled - creating synthetic invite for provenance",
+                handle=provider_info.handle,
+                provider=provider_info.provider.value,
+            )
+            return await self._create_synthetic_invite(provider_info)
 
         if request.invite_token:
             # Login via invite link - validate token and match identity
@@ -323,3 +333,71 @@ class LoginUseCase:
                 raise ValueError("Invite not found")
 
             return invite
+
+    async def _create_synthetic_invite(self, provider_info: OAuthProviderInfo):
+        """Create a synthetic invite from rory.bio for provenance tracking.
+
+        This allows us to track that users signed up during open registration period.
+        The invite is created as if rory.bio invited them.
+
+        Args:
+            provider_info: Provider user information for the new user
+
+        Returns:
+            Synthetic invite (pending status, ready to be accepted)
+        """
+
+        # Find rory.bio user
+        rory_user = await self.user_service.get_user_by_handle(Handle("rory.bio"))
+
+        if not rory_user:
+            logfire.error(
+                "Cannot create synthetic invite - rory.bio user not found",
+                handle=provider_info.handle,
+                provider=provider_info.provider.value,
+            )
+            # Return None and allow registration without invite
+            return None
+
+        # Check if invite already exists for this user (shouldn't happen but be safe)
+        existing_invite = await self.invite_service.find_pending_by_provider_identity(
+            provider_info.provider, provider_info.provider_user_id
+        )
+        if existing_invite:
+            logfire.info(
+                "Synthetic invite already exists, using existing",
+                inviter_id=str(existing_invite.inviter_id),
+                invitee_handle=provider_info.handle,
+            )
+            return existing_invite
+
+        # Create synthetic invite using the service's create_invite method
+        try:
+            synthetic_invite = await self.invite_service.create_invite(
+                inviter_id=rory_user.id,
+                provider=provider_info.provider,
+                invitee_handle=provider_info.handle,
+                invitee_provider_id=provider_info.provider_user_id,
+                invitee_name=None,
+                invite_token=InviteToken(root=f"synthetic-{uuid4().hex}"),
+            )
+
+            logfire.info(
+                "Created synthetic invite for provenance",
+                inviter_handle="rory.bio",
+                invitee_handle=provider_info.handle,
+                provider=provider_info.provider.value,
+            )
+
+            return synthetic_invite
+        except ValueError as e:
+            # Invite already exists (race condition)
+            logfire.warn(
+                "Synthetic invite creation failed - invite already exists",
+                error=str(e),
+                handle=provider_info.handle,
+            )
+            # Try to get the existing one
+            return await self.invite_service.find_pending_by_provider_identity(
+                provider_info.provider, provider_info.provider_user_id
+            )

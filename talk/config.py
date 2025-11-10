@@ -39,6 +39,12 @@ class AuthSettings(BaseModel):
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
 
+    # Invite-only mode
+    # When True: New users require an invitation to register
+    # When False: Open registration for all users
+    # Seed users always bypass invite requirement regardless of this setting
+    invite_only: bool = True
+
     # OAuth callback URLs (set by Settings validator from api.base_url)
     bluesky_callback_url: str = "http://localhost:8000/auth/callback/bluesky"
     twitter_callback_url: str = "http://localhost:8000/auth/callback/twitter"

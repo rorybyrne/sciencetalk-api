@@ -40,6 +40,9 @@ class TestLoginUseCase:
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
+        # Enable invite-only mode for this test
+        settings.auth.invite_only = True
+
         # Create a pending invite for the user (MockBlueskyAuthClient returns "user.bsky.social")
         inviter_id = UserId(uuid4())
         invite_token = InviteToken(root="test-token-123")
@@ -186,6 +189,9 @@ class TestLoginUseCase:
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
 
+        # Enable invite-only mode for this test
+        settings.auth.invite_only = True
+
         login_use_case = LoginUseCase(
             auth_service=auth_service,
             jwt_service=jwt_service,
@@ -223,6 +229,9 @@ class TestLoginUseCase:
         jwt_service = await unit_env.get(JWTService)
         invite_service = await unit_env.get(InviteService)
         settings = await unit_env.get(Settings)
+
+        # Enable invite-only mode for this test
+        settings.auth.invite_only = True
 
         # Create invite and mark as accepted
         inviter_id = UserId(uuid4())

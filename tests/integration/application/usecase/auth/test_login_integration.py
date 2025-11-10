@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from talk.application.usecase.auth.login import LoginRequest, LoginUseCase
+from talk.config import Settings
 from talk.domain.model.user import User
 from talk.domain.repository import InviteRepository, UserRepository
 from talk.domain.service import InviteService, UserIdentityService, UserService
@@ -67,6 +68,10 @@ class TestLoginIntegration:
         user_identity_service = await integration_env.get(UserIdentityService)
         invite_service = await integration_env.get(InviteService)
         login_use_case = await integration_env.get(LoginUseCase)
+        settings = await integration_env.get(Settings)
+
+        # Enable invite-only mode for this test
+        settings.auth.invite_only = True
 
         # Create an inviter (this user would normally exist from previous signup)
         inviter_id = UserId(uuid4())
@@ -149,6 +154,10 @@ class TestLoginIntegration:
         # Arrange
         login_use_case = await integration_env.get(LoginUseCase)
         user_identity_service = await integration_env.get(UserIdentityService)
+        settings = await integration_env.get(Settings)
+
+        # Enable invite-only mode for this test
+        settings.auth.invite_only = True
 
         # Act & Assert - Try to login without invite
         with pytest.raises(ValueError, match="No invitation found.*invite-only"):
