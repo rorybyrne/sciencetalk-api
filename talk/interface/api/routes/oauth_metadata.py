@@ -4,7 +4,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from talk.config import Settings
+from talk.config import APISettings, AuthSettings
 
 router = APIRouter(route_class=DishkaRoute)
 
@@ -26,7 +26,10 @@ class OAuthClientMetadata(BaseModel):
 
 
 @router.get("/.well-known/oauth-client-metadata", response_model=OAuthClientMetadata)
-def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMetadata:
+def get_oauth_client_metadata(
+    api_settings: FromDishka[APISettings],
+    auth_settings: FromDishka[AuthSettings],
+) -> OAuthClientMetadata:
     """Serve OAuth client metadata for AT Protocol authentication.
 
     This endpoint provides metadata about this OAuth client, which serves
@@ -53,14 +56,14 @@ def get_oauth_client_metadata(settings: FromDishka[Settings]) -> OAuthClientMeta
             "dpop_bound_access_tokens": true
         }
     """
-    base_url = settings.api.base_url
+    base_url = api_settings.base_url
 
     return OAuthClientMetadata(
         client_id=f"{base_url}/.well-known/oauth-client-metadata",
         client_name="Science Talk",
         client_uri=base_url,
         logo_uri=f"{base_url}/amacrin.svg",
-        redirect_uris=[settings.auth.bluesky_callback_url],
+        redirect_uris=[auth_settings.bluesky_callback_url],
         grant_types=[
             "authorization_code",
             "refresh_token",

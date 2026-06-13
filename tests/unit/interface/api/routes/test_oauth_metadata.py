@@ -13,7 +13,7 @@ class TestGetOAuthClientMetadata:
         settings = Settings(host="talk.example.com", environment="production")
 
         # Act
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         # Assert
         assert hasattr(metadata, "client_id")
@@ -32,7 +32,7 @@ class TestGetOAuthClientMetadata:
         """Client ID should be the URL of the metadata endpoint."""
         settings = Settings(host="talk.example.com", environment="production")
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert (
             metadata.client_id
@@ -43,7 +43,7 @@ class TestGetOAuthClientMetadata:
         """Client name should be Science Talk."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.client_name == "Science Talk"
 
@@ -51,7 +51,7 @@ class TestGetOAuthClientMetadata:
         """Client URI should match base URL."""
         settings = Settings(host="talk.example.com", environment="production")
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.client_uri == "https://talk.example.com"
 
@@ -59,7 +59,7 @@ class TestGetOAuthClientMetadata:
         """Logo URI should point to amacrin.svg."""
         settings = Settings(host="talk.example.com", environment="production")
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.logo_uri == "https://talk.example.com/amacrin.svg"
 
@@ -67,7 +67,7 @@ class TestGetOAuthClientMetadata:
         """Redirect URIs should include callback endpoint."""
         settings = Settings(host="talk.example.com", environment="production")
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.redirect_uris == [
             "https://talk.example.com/auth/callback/bluesky"
@@ -77,7 +77,7 @@ class TestGetOAuthClientMetadata:
         """Grant types should include authorization_code."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert "authorization_code" in metadata.grant_types
 
@@ -85,7 +85,7 @@ class TestGetOAuthClientMetadata:
         """Response types should include code."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert "code" in metadata.response_types
 
@@ -93,7 +93,7 @@ class TestGetOAuthClientMetadata:
         """Scope should be atproto."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.scope == "atproto"
 
@@ -101,7 +101,7 @@ class TestGetOAuthClientMetadata:
         """Token endpoint auth method should be none (public client)."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.token_endpoint_auth_method == "none"
 
@@ -109,7 +109,7 @@ class TestGetOAuthClientMetadata:
         """Application type should be web."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.application_type == "web"
 
@@ -117,7 +117,7 @@ class TestGetOAuthClientMetadata:
         """DPoP bound access tokens must be true per AT Protocol spec."""
         settings = Settings()
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert metadata.dpop_bound_access_tokens is True
 
@@ -126,7 +126,7 @@ class TestGetOAuthClientMetadata:
         settings = Settings()
         # Default base_url is http://localhost:8000
 
-        metadata = get_oauth_client_metadata(settings)
+        metadata = get_oauth_client_metadata(settings.api, settings.auth)
 
         assert "localhost" in metadata.client_id
         assert "localhost" in metadata.client_uri

@@ -2,7 +2,7 @@
 
 from dishka import Scope, provide
 
-from talk.config import AuthSettings, Settings
+from talk.config import APISettings, AuthSettings, Settings
 from talk.util.di.base import ProviderBase
 
 
@@ -21,3 +21,8 @@ class ProdConfigProvider(ProviderBase):
     def provide_auth_settings(self, settings: Settings) -> AuthSettings:
         """Provide auth settings."""
         return settings.auth
+
+    @provide(scope=Scope.APP)
+    def provide_api_settings(self, settings: Settings) -> APISettings:
+        """Provide API settings."""
+        return settings.api
