@@ -11,7 +11,6 @@ from talk.application.usecase.post.update_post import (
 )
 from talk.domain.error import (
     ContentDeletedException,
-    InvalidEditOperationError,
     NotAuthorizedError,
 )
 from talk.domain.model.post import Post
@@ -171,8 +170,8 @@ class TestUpdatePostUseCase:
             await use_case.execute(request)
 
     @pytest.mark.asyncio
-    async def test_update_post_fails_when_url_based_post(self, unit_env):
-        """Updating text on URL-based post should raise InvalidEditOperationError."""
+    async def test_update_post_succeeds_when_url_based_post(self, unit_env):
+        """Updating text on URL-based post should now succeed."""
         # Arrange
         post_service = await unit_env.get(PostService)
         post_repo = await unit_env.get(PostRepository)
@@ -210,9 +209,17 @@ class TestUpdatePostUseCase:
             text="Adding text to URL post",
         )
 
-        # Act & Assert
-        with pytest.raises(InvalidEditOperationError, match="Cannot edit text"):
-            await use_case.execute(request)
+        # Act
+        response = await use_case.execute(request)
+
+        # Assert
+        assert response.post_id == str(post_id)
+        assert response.text == "Adding text to URL post"
+        assert response.url == "https://example.com/paper.pdf"
+
+        # Verify it was saved
+        saved_post = await post_repo.find_by_id(post_id)
+        assert saved_post.text == "Adding text to URL post"
 
     @pytest.mark.asyncio
     async def test_update_post_fails_when_post_not_found(self, unit_env):

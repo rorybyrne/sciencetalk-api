@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from talk.domain.error import (
     ContentDeletedException,
-    InvalidEditOperationError,
     NotAuthorizedError,
 )
 from talk.domain.repository import VoteRepository
@@ -70,7 +69,6 @@ class UpdatePostUseCase:
         Raises:
             NotAuthorizedError: If user doesn't own the post
             ContentDeletedException: If post is deleted
-            InvalidEditOperationError: If trying to edit text on URL-based post
         """
         post_id = PostId(UUID(request.post_id))
         user_id = UserId(UUID(request.user_id))
@@ -89,14 +87,7 @@ class UpdatePostUseCase:
         if post.deleted_at is not None:
             raise ContentDeletedException("post", request.post_id)
 
-        # 4. Validate edit operation
-        # Cannot edit text on URL-based posts
-        if post.url is not None:
-            raise InvalidEditOperationError(
-                "Cannot edit text on URL-based posts (Result, Method, Review, Tool)"
-            )
-
-        # 5. Update via service
+        # 4. Update via service (text editing now allowed for all post types)
         updated_post = await self.post_service.update_text(post_id, request.text)
 
         # Should not happen since we checked above, but handle defensively
