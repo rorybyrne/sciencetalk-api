@@ -439,3 +439,9 @@ Remember: **This template is designed to grow with your domain. Start simple, fo
 ---
 
 **Happy coding! 🚀**
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/005-chore-migrate-deployment/plan.md
+<!-- SPECKIT END -->

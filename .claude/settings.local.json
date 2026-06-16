@@ -9,7 +9,8 @@
       "Bash(uv run pytest:*)",
       "Bash(uv run pyright:*)",
       "Bash(just test:*)",
-      "Bash(uv run ruff:*)"
+      "Bash(uv run ruff:*)",
+      "Bash(gh repo:*)"
     ],
     "deny": [],
     "ask": []
